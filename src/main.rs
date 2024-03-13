@@ -3,6 +3,7 @@ use cpal::{
     FromSample, Sample, SizedSample,
 };
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use engine::{Engine, Envelope, Note, Oscillator, Waveform};
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
@@ -15,12 +16,13 @@ use ratatui::{
     },
     Frame,
 };
-use std::sync::mpsc;
-use std::sync::mpsc::Sender;
+use std::{
+    sync::mpsc::{self, Sender},
+    time::{Duration, Instant},
+};
 
+mod engine;
 mod tui;
-
-const _SAMPLE_RATE: u32 = 44100;
 
 fn _db_to_volume(db: f32) -> f32 {
     (10.0_f32).powf(0.05 * db)
@@ -34,82 +36,7 @@ fn _w(freq: f32) -> f32 {
     freq * 2.0 * std::f32::consts::PI
 }
 
-pub enum Waveform {
-    Sine,
-    Square,
-    Saw,
-    Triangle,
-}
-
-pub struct Oscillator {
-    pub sample_rate: f32,
-    pub waveform: Waveform,
-    pub sample_index: f32,
-    pub frequency: f32,
-}
-
-impl Oscillator {
-    fn advance_sample(&mut self) {
-        self.sample_index = (self.sample_index + 1.0) % self.sample_rate;
-    }
-
-    fn _set_waveform(&mut self, waveform: Waveform) {
-        self.waveform = waveform;
-    }
-
-    fn set_frequency(&mut self, frequency: f32) {
-        self.frequency = frequency;
-    }
-
-    fn calculate_sine_output_from_freq(&self, freq: f32) -> f32 {
-        let two_pi = 2.0 * std::f32::consts::PI;
-        (self.sample_index * freq * two_pi / self.sample_rate).sin()
-    }
-
-    fn is_multiple_of_freq_above_nyquist(&self, multiple: f32) -> bool {
-        self.frequency * multiple > self.sample_rate / 2.0
-    }
-
-    fn sine_wave(&mut self) -> f32 {
-        self.advance_sample();
-        self.calculate_sine_output_from_freq(self.frequency)
-    }
-
-    fn generative_waveform(&mut self, harmonic_index_increment: i32, gain_exponent: f32) -> f32 {
-        self.advance_sample();
-        let mut output = 0.0;
-        let mut i = 1;
-        while !self.is_multiple_of_freq_above_nyquist(i as f32) {
-            let gain = 1.0 / (i as f32).powf(gain_exponent);
-            output += gain * self.calculate_sine_output_from_freq(self.frequency * i as f32);
-            i += harmonic_index_increment;
-        }
-        output
-    }
-
-    fn square_wave(&mut self) -> f32 {
-        self.generative_waveform(2, 1.0)
-    }
-
-    fn saw_wave(&mut self) -> f32 {
-        self.generative_waveform(1, 1.0)
-    }
-
-    fn triangle_wave(&mut self) -> f32 {
-        self.generative_waveform(2, 2.0)
-    }
-
-    fn tick(&mut self) -> f32 {
-        match self.waveform {
-            Waveform::Sine => self.sine_wave(),
-            Waveform::Square => self.square_wave(),
-            Waveform::Saw => self.saw_wave(),
-            Waveform::Triangle => self.triangle_wave(),
-        }
-    }
-}
-
-pub fn stream_setup_for() -> Result<(cpal::Stream, Sender<f32>), anyhow::Error>
+pub fn stream_setup_for() -> Result<(cpal::Stream, Sender<Note>), anyhow::Error>
 // where
 {
     let (_host, device, config) = host_device_setup()?;
@@ -149,7 +76,7 @@ pub fn host_device_setup(
 pub fn make_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
-) -> Result<(cpal::Stream, Sender<f32>), anyhow::Error>
+) -> Result<(cpal::Stream, Sender<Note>), anyhow::Error>
 where
     T: SizedSample + FromSample<f32>,
 {
@@ -160,6 +87,9 @@ where
         sample_index: 0.0,
         frequency: 440.0,
     };
+
+    let mut engine = Engine::new();
+
     let err_fn = |err| eprintln!("Error building output sound stream: {}", err);
 
     let (tx, rx) = mpsc::channel();
@@ -167,10 +97,11 @@ where
     let stream = device.build_output_stream(
         config,
         move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
-            if let Ok(frequency) = rx.try_recv() {
-                oscillator.set_frequency(frequency);
+            if let Ok(note) = rx.try_recv() {
+                // oscillator.set_frequency(frequency);
+                engine.add_note(note);
             }
-            process_frame(output, &mut oscillator, num_channels)
+            process_frame(output, &mut engine, num_channels)
         },
         err_fn,
         None,
@@ -179,15 +110,12 @@ where
     Ok((stream, tx))
 }
 
-fn process_frame<SampleType>(
-    output: &mut [SampleType],
-    oscillator: &mut Oscillator,
-    num_channels: usize,
-) where
+fn process_frame<SampleType>(output: &mut [SampleType], engine: &mut Engine, num_channels: usize)
+where
     SampleType: Sample + FromSample<f32>,
 {
     for frame in output.chunks_mut(num_channels) {
-        let value: SampleType = SampleType::from_sample(oscillator.tick());
+        let value: SampleType = SampleType::from_sample(engine.tick());
 
         // copy the same value to all channels
         for sample in frame.iter_mut() {
@@ -198,7 +126,7 @@ fn process_frame<SampleType>(
 
 pub struct App {
     _stream: cpal::Stream,
-    tx: Sender<f32>,
+    tx: Sender<Note>,
     frequency: f32,
     exit: bool,
 }
@@ -207,6 +135,7 @@ impl App {
     pub fn new() -> Result<Self, anyhow::Error> {
         let (stream, tx) = stream_setup_for()?;
         stream.play()?;
+
         Ok(Self {
             _stream: stream,
             tx,
@@ -245,6 +174,7 @@ impl App {
             KeyCode::Char('q') => self.exit(),
             KeyCode::Left => self.decrement_counter(),
             KeyCode::Right => self.increment_counter(),
+            KeyCode::Char(' ') => self.play_note(),
             _ => {}
         }
     }
@@ -255,12 +185,37 @@ impl App {
 
     fn increment_counter(&mut self) {
         self.frequency += 100.0;
-        self.tx.send(self.frequency).unwrap();
+        // self.tx.send(self.frequency).unwrap();
     }
 
     fn decrement_counter(&mut self) {
         self.frequency -= 100.0;
-        self.tx.send(self.frequency).unwrap();
+        // self.tx.send(self.frequency).unwrap();
+    }
+
+    fn play_note(&mut self) {
+        let on_time = Instant::now();
+        let note = Note {
+            envelope: Envelope {
+                attack_time: Duration::from_secs_f32(0.001),
+                decay_time: Duration::from_secs_f32(0.002),
+                release_time: Duration::from_secs_f32(0.5),
+                sustained_level: 0.25,
+                start_level: 0.5,
+            },
+            on_time,
+            off_time: Some(on_time),
+            oscillators: vec![(
+                1.0,
+                Oscillator {
+                    frequency: self.frequency,
+                    sample_rate: 44100.0,
+                    sample_index: 0.0,
+                    waveform: Waveform::Saw,
+                },
+            )],
+        };
+        self.tx.send(note).unwrap();
     }
 }
 
