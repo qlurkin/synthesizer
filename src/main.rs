@@ -2,11 +2,23 @@ use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     FromSample, Sample, SizedSample,
 };
-use std::sync::mpsc;
-use std::{
-    io::{self, Write},
-    sync::mpsc::Sender,
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use ratatui::{
+    buffer::Buffer,
+    layout::{Alignment, Rect},
+    prelude::Stylize,
+    symbols,
+    text::{Line, Text},
+    widgets::{
+        block::{Position, Title},
+        Block, Borders, Paragraph, Widget,
+    },
+    Frame,
 };
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
+
+mod tui;
 
 const _SAMPLE_RATE: u32 = 44100;
 
@@ -41,7 +53,7 @@ impl Oscillator {
         self.sample_index = (self.sample_index + 1.0) % self.sample_rate;
     }
 
-    fn set_waveform(&mut self, waveform: Waveform) {
+    fn _set_waveform(&mut self, waveform: Waveform) {
         self.waveform = waveform;
     }
 
@@ -126,10 +138,10 @@ pub fn host_device_setup(
     let device = host
         .default_output_device()
         .ok_or_else(|| anyhow::Error::msg("Default output device is not available"))?;
-    println!("Output device : {}", device.name()?);
+    // println!("Output device : {}", device.name()?);
 
     let config = device.default_output_config()?;
-    println!("Default output config : {:?}", config);
+    // println!("Default output config : {:?}", config);
 
     Ok((host, device, config))
 }
@@ -150,29 +162,11 @@ where
     };
     let err_fn = |err| eprintln!("Error building output sound stream: {}", err);
 
-    let time_at_start = std::time::Instant::now();
-    println!("Time at start: {:?}", time_at_start);
-
     let (tx, rx) = mpsc::channel();
 
     let stream = device.build_output_stream(
         config,
         move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
-            // for 0-1s play sine, 1-2s play square, 2-3s play saw, 3-4s play triangle_wave
-            // let time_since_start = std::time::Instant::now()
-            //     .duration_since(time_at_start)
-            //     .as_secs_f32();
-            // if time_since_start < 1.0 {
-            //     oscillator.set_waveform(Waveform::Sine);
-            // } else if time_since_start < 2.0 {
-            //     oscillator.set_waveform(Waveform::Triangle);
-            // } else if time_since_start < 3.0 {
-            //     oscillator.set_waveform(Waveform::Square);
-            // } else if time_since_start < 4.0 {
-            //     oscillator.set_waveform(Waveform::Saw);
-            // } else {
-            //     oscillator.set_waveform(Waveform::Sine);
-            // }
             if let Ok(frequency) = rx.try_recv() {
                 oscillator.set_frequency(frequency);
             }
@@ -202,25 +196,110 @@ fn process_frame<SampleType>(
     }
 }
 
-fn main() -> anyhow::Result<()> {
-    let (stream, tx) = stream_setup_for()?;
-    stream.play()?;
+pub struct App {
+    _stream: cpal::Stream,
+    tx: Sender<f32>,
+    frequency: f32,
+    exit: bool,
+}
 
-    loop {
-        print!("> ");
-        io::stdout().flush().unwrap();
-        let mut command = String::new();
-
-        io::stdin()
-            .read_line(&mut command)
-            .expect("Failed to read line");
-
-        if command.trim() == "exit" {
-            break;
-        }
-        let frequency: f32 = command.trim().parse().unwrap();
-        tx.send(frequency).unwrap();
+impl App {
+    pub fn new() -> Result<Self, anyhow::Error> {
+        let (stream, tx) = stream_setup_for()?;
+        stream.play()?;
+        Ok(Self {
+            _stream: stream,
+            tx,
+            frequency: 440.0,
+            exit: false,
+        })
     }
 
-    Ok(())
+    /// runs the application's main loop until the user quits
+    pub fn run(&mut self, terminal: &mut tui::Tui) -> anyhow::Result<()> {
+        while !self.exit {
+            terminal.draw(|frame| self.render_frame(frame))?;
+            self.handle_events()?;
+        }
+        Ok(())
+    }
+
+    fn render_frame(&self, frame: &mut Frame) {
+        frame.render_widget(self, frame.size());
+    }
+
+    fn handle_events(&mut self) -> anyhow::Result<()> {
+        match event::read()? {
+            // it's important to check that the event is a key press event as
+            // crossterm also emits key release and repeat events on Windows.
+            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
+                self.handle_key_event(key_event)
+            }
+            _ => {}
+        };
+        Ok(())
+    }
+
+    fn handle_key_event(&mut self, key_event: KeyEvent) {
+        match key_event.code {
+            KeyCode::Char('q') => self.exit(),
+            KeyCode::Left => self.decrement_counter(),
+            KeyCode::Right => self.increment_counter(),
+            _ => {}
+        }
+    }
+
+    fn exit(&mut self) {
+        self.exit = true;
+    }
+
+    fn increment_counter(&mut self) {
+        self.frequency += 100.0;
+        self.tx.send(self.frequency).unwrap();
+    }
+
+    fn decrement_counter(&mut self) {
+        self.frequency -= 100.0;
+        self.tx.send(self.frequency).unwrap();
+    }
+}
+
+impl Widget for &App {
+    fn render(self, area: Rect, buf: &mut Buffer) {
+        let title = Title::from(" Counter App Tutorial ".bold());
+        let instructions = Title::from(Line::from(vec![
+            " Decrement ".into(),
+            "<Left>".blue().bold(),
+            " Increment ".into(),
+            "<Right>".blue().bold(),
+            " Quit ".into(),
+            "<Q> ".blue().bold(),
+        ]));
+        let block = Block::default()
+            .title(title.alignment(Alignment::Center))
+            .title(
+                instructions
+                    .alignment(Alignment::Center)
+                    .position(Position::Bottom),
+            )
+            .borders(Borders::ALL)
+            .border_set(symbols::border::THICK);
+
+        let counter_text = Text::from(vec![Line::from(vec![
+            "Value: ".into(),
+            self.frequency.to_string().yellow(),
+        ])]);
+
+        Paragraph::new(counter_text)
+            .centered()
+            .block(block)
+            .render(area, buf);
+    }
+}
+
+fn main() -> anyhow::Result<()> {
+    let mut terminal = tui::init()?;
+    let app_result = App::new()?.run(&mut terminal);
+    tui::restore()?;
+    app_result
 }
