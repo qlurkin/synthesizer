@@ -1,10 +1,14 @@
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    SizedSample,
+    FromSample, Sample, SizedSample,
 };
-use cpal::{FromSample, Sample};
+use std::sync::mpsc;
+use std::{
+    io::{self, Write},
+    sync::mpsc::Sender,
+};
 
-const SAMPLE_RATE: u32 = 44100;
+const _SAMPLE_RATE: u32 = 44100;
 
 fn _db_to_volume(db: f32) -> f32 {
     (10.0_f32).powf(0.05 * db)
@@ -14,7 +18,7 @@ fn _volume_to_db(volume: f32) -> f32 {
     20.0_f32 * volume.log10()
 }
 
-fn w(freq: f32) -> f32 {
+fn _w(freq: f32) -> f32 {
     freq * 2.0 * std::f32::consts::PI
 }
 
@@ -28,31 +32,35 @@ pub enum Waveform {
 pub struct Oscillator {
     pub sample_rate: f32,
     pub waveform: Waveform,
-    pub current_sample_index: f32,
-    pub frequency_hz: f32,
+    pub sample_index: f32,
+    pub frequency: f32,
 }
 
 impl Oscillator {
     fn advance_sample(&mut self) {
-        self.current_sample_index = (self.current_sample_index + 1.0) % self.sample_rate;
+        self.sample_index = (self.sample_index + 1.0) % self.sample_rate;
     }
 
     fn set_waveform(&mut self, waveform: Waveform) {
         self.waveform = waveform;
     }
 
+    fn set_frequency(&mut self, frequency: f32) {
+        self.frequency = frequency;
+    }
+
     fn calculate_sine_output_from_freq(&self, freq: f32) -> f32 {
         let two_pi = 2.0 * std::f32::consts::PI;
-        (self.current_sample_index * freq * two_pi / self.sample_rate).sin()
+        (self.sample_index * freq * two_pi / self.sample_rate).sin()
     }
 
     fn is_multiple_of_freq_above_nyquist(&self, multiple: f32) -> bool {
-        self.frequency_hz * multiple > self.sample_rate / 2.0
+        self.frequency * multiple > self.sample_rate / 2.0
     }
 
     fn sine_wave(&mut self) -> f32 {
         self.advance_sample();
-        self.calculate_sine_output_from_freq(self.frequency_hz)
+        self.calculate_sine_output_from_freq(self.frequency)
     }
 
     fn generative_waveform(&mut self, harmonic_index_increment: i32, gain_exponent: f32) -> f32 {
@@ -61,7 +69,7 @@ impl Oscillator {
         let mut i = 1;
         while !self.is_multiple_of_freq_above_nyquist(i as f32) {
             let gain = 1.0 / (i as f32).powf(gain_exponent);
-            output += gain * self.calculate_sine_output_from_freq(self.frequency_hz * i as f32);
+            output += gain * self.calculate_sine_output_from_freq(self.frequency * i as f32);
             i += harmonic_index_increment;
         }
         output
@@ -89,8 +97,8 @@ impl Oscillator {
     }
 }
 
-pub fn stream_setup_for() -> Result<cpal::Stream, anyhow::Error>
-where
+pub fn stream_setup_for() -> Result<(cpal::Stream, Sender<f32>), anyhow::Error>
+// where
 {
     let (_host, device, config) = host_device_setup()?;
 
@@ -129,7 +137,7 @@ pub fn host_device_setup(
 pub fn make_stream<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
-) -> Result<cpal::Stream, anyhow::Error>
+) -> Result<(cpal::Stream, Sender<f32>), anyhow::Error>
 where
     T: SizedSample + FromSample<f32>,
 {
@@ -137,31 +145,36 @@ where
     let mut oscillator = Oscillator {
         waveform: Waveform::Sine,
         sample_rate: config.sample_rate.0 as f32,
-        current_sample_index: 0.0,
-        frequency_hz: 440.0,
+        sample_index: 0.0,
+        frequency: 440.0,
     };
     let err_fn = |err| eprintln!("Error building output sound stream: {}", err);
 
     let time_at_start = std::time::Instant::now();
     println!("Time at start: {:?}", time_at_start);
 
+    let (tx, rx) = mpsc::channel();
+
     let stream = device.build_output_stream(
         config,
         move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
             // for 0-1s play sine, 1-2s play square, 2-3s play saw, 3-4s play triangle_wave
-            let time_since_start = std::time::Instant::now()
-                .duration_since(time_at_start)
-                .as_secs_f32();
-            if time_since_start < 1.0 {
-                oscillator.set_waveform(Waveform::Sine);
-            } else if time_since_start < 2.0 {
-                oscillator.set_waveform(Waveform::Triangle);
-            } else if time_since_start < 3.0 {
-                oscillator.set_waveform(Waveform::Square);
-            } else if time_since_start < 4.0 {
-                oscillator.set_waveform(Waveform::Saw);
-            } else {
-                oscillator.set_waveform(Waveform::Sine);
+            // let time_since_start = std::time::Instant::now()
+            //     .duration_since(time_at_start)
+            //     .as_secs_f32();
+            // if time_since_start < 1.0 {
+            //     oscillator.set_waveform(Waveform::Sine);
+            // } else if time_since_start < 2.0 {
+            //     oscillator.set_waveform(Waveform::Triangle);
+            // } else if time_since_start < 3.0 {
+            //     oscillator.set_waveform(Waveform::Square);
+            // } else if time_since_start < 4.0 {
+            //     oscillator.set_waveform(Waveform::Saw);
+            // } else {
+            //     oscillator.set_waveform(Waveform::Sine);
+            // }
+            if let Ok(frequency) = rx.try_recv() {
+                oscillator.set_frequency(frequency);
             }
             process_frame(output, &mut oscillator, num_channels)
         },
@@ -169,7 +182,7 @@ where
         None,
     )?;
 
-    Ok(stream)
+    Ok((stream, tx))
 }
 
 fn process_frame<SampleType>(
@@ -190,8 +203,24 @@ fn process_frame<SampleType>(
 }
 
 fn main() -> anyhow::Result<()> {
-    let stream = stream_setup_for()?;
+    let (stream, tx) = stream_setup_for()?;
     stream.play()?;
-    std::thread::sleep(std::time::Duration::from_millis(4000));
+
+    loop {
+        print!("> ");
+        io::stdout().flush().unwrap();
+        let mut command = String::new();
+
+        io::stdin()
+            .read_line(&mut command)
+            .expect("Failed to read line");
+
+        if command.trim() == "exit" {
+            break;
+        }
+        let frequency: f32 = command.trim().parse().unwrap();
+        tx.send(frequency).unwrap();
+    }
+
     Ok(())
 }
