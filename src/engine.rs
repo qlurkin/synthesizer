@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+#[allow(unused)]
 pub enum Waveform {
     Sine,
     Square,
@@ -23,7 +24,7 @@ impl Oscillator {
         self.waveform = waveform;
     }
 
-    pub fn set_frequency(&mut self, frequency: f32) {
+    pub fn _set_frequency(&mut self, frequency: f32) {
         self.frequency = frequency;
     }
 
@@ -155,7 +156,6 @@ impl Engine {
 
     pub fn tick(&mut self) -> f32 {
         let current_time = Instant::now();
-        let mut w: usize = 0;
         self.notes.retain(|note| !note.done(current_time));
         let value = self
             .notes
