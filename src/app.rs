@@ -1,4 +1,4 @@
-use crate::engine::{Engine, Envelope, Note, Oscillator, Waveform};
+use crate::engine::{Engine, Envelope, Note, ProdOscillator, PulseOscillator, SineOscillator};
 use anyhow::{anyhow, Result};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
@@ -17,10 +17,10 @@ use ratatui::{
     },
     Frame,
 };
-use std::io::stdout;
 use std::{
+    io::stdout,
     sync::mpsc::{self, Sender},
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use crossterm::{execute, terminal::*};
@@ -74,14 +74,8 @@ where
     T: SizedSample + FromSample<f32>,
 {
     let num_channels = config.channels as usize;
-    // let mut oscillator = Oscillator {
-    //     waveform: Waveform::Sine,
-    //     sample_rate: config.sample_rate.0 as f32,
-    //     sample_index: 0.0,
-    //     frequency: 440.0,
-    // };
 
-    let mut engine = Engine::new();
+    let mut engine = Engine::new(config.sample_rate.0);
 
     let err_fn = |err| eprintln!("Error building output sound stream: {}", err);
 
@@ -91,7 +85,6 @@ where
         &config,
         move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
             if let Ok(note) = rx.try_recv() {
-                // oscillator.set_frequency(frequency);
                 engine.add_note(note);
             }
             process_frame(output, &mut engine, num_channels)
@@ -201,23 +194,19 @@ impl App {
         let on_time = Instant::now();
         let note = Note {
             envelope: Envelope {
-                attack_time: Duration::from_secs_f32(0.001),
-                decay_time: Duration::from_secs_f32(0.002),
-                release_time: Duration::from_secs_f32(0.5),
+                attack_time: 0.001,
+                decay_time: 0.002,
+                release_time: 0.5,
                 sustained_level: 0.25,
                 start_level: 0.5,
             },
             on_time,
             off_time: Some(on_time),
-            oscillators: vec![(
-                1.0,
-                Oscillator {
-                    frequency: self.frequency,
-                    sample_rate: 44100.0,
-                    sample_index: 0.0,
-                    waveform: Waveform::Saw,
-                },
-            )],
+            oscillator: PulseOscillator::new_fm(
+                self.frequency,
+                0.2,
+                ProdOscillator::by_const(2.0, SineOscillator::new(10.0)),
+            ),
         };
         self.tx.send(note).unwrap();
     }
