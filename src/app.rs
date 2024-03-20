@@ -1,4 +1,7 @@
-use crate::engine::{Engine, Envelope, Note, ProdOscillator, PulseOscillator, SineOscillator};
+use crate::engine::{
+    ADSREnvelope, Engine, FrequenceModifier, Gain, Input, Instrument, InstrumentOperator, Note,
+    Operator, Waveform,
+};
 use anyhow::{anyhow, Result};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
@@ -76,6 +79,37 @@ where
     let num_channels = config.channels as usize;
 
     let mut engine = Engine::new(config.sample_rate.0);
+
+    engine.add_instrument(Instrument {
+        operators: vec![
+            InstrumentOperator {
+                operator: Operator {
+                    waveform: Waveform::Saw,
+                    frequency_modifier: FrequenceModifier::None,
+                    gain: Gain::ADSREnvelope(ADSREnvelope {
+                        attack_time: 0.01,
+                        decay_time: 0.02,
+                        release_time: 0.5,
+                        sustained_level: 0.3,
+                        start_level: 0.4,
+                    }),
+                },
+                input: Input::Operator(1),
+                last_sample: 0.0,
+                called: false,
+            },
+            InstrumentOperator {
+                operator: Operator {
+                    waveform: Waveform::Sine,
+                    frequency_modifier: FrequenceModifier::Fixed(5.0),
+                    gain: Gain::Const(0.5),
+                },
+                input: Input::None,
+                last_sample: 0.0,
+                called: false,
+            },
+        ],
+    });
 
     let err_fn = |err| eprintln!("Error building output sound stream: {}", err);
 
@@ -193,20 +227,11 @@ impl App {
     fn play_note(&mut self) {
         let on_time = Instant::now();
         let note = Note {
-            envelope: Envelope {
-                attack_time: 0.001,
-                decay_time: 0.002,
-                release_time: 0.5,
-                sustained_level: 0.25,
-                start_level: 0.5,
-            },
+            frequency: self.frequency,
             on_time,
             off_time: Some(on_time),
-            oscillator: PulseOscillator::new_fm(
-                self.frequency,
-                0.2,
-                ProdOscillator::by_const(2.0, SineOscillator::new(10.0)),
-            ),
+            instrument: 0,
+            done: false,
         };
         self.tx.send(note).unwrap();
     }
