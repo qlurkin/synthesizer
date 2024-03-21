@@ -120,7 +120,7 @@ impl Oscillator {
 
 #[allow(unused)]
 pub enum Operation {
-    Operator(usize, Box<Operation>),
+    Oscillator(usize, Box<Operation>),
     Sum(Vec<Operation>),
     Factor(Gain, Box<Operation>),
     None,
@@ -135,7 +135,7 @@ impl Operation {
     ) -> (f32, bool) {
         match self {
             Operation::None => (0.0, true),
-            Operation::Operator(index, input) => {
+            Operation::Oscillator(index, input) => {
                 let (input, done) = input.eval(key_elapsed, key_length, eval_operator);
                 let input = if done { 0.0 } else { input };
                 (eval_operator(*index, input), false)

@@ -89,11 +89,11 @@ where
                 sustained_level: 0.3,
                 start_level: 0.4,
             }),
-            Box::new(Operation::Operator(
+            Box::new(Operation::Oscillator(
                 0,
                 Box::new(Operation::Factor(
                     Gain::Const(0.5),
-                    Box::new(Operation::Operator(1, Box::new(Operation::None))),
+                    Box::new(Operation::Oscillator(1, Box::new(Operation::None))),
                 )),
             )),
         ),
