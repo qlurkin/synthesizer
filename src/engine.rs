@@ -55,45 +55,24 @@ impl FrequenceModifier {
     }
 }
 
+#[allow(unused)]
 pub enum Gain {
     Const(f32),
-    ADSREnvelope(ADSREnvelope),
+    AdsrEnvelope(AdsrEnvelope),
+    Lfo(Lfo),
 }
 
 impl Gain {
     pub fn level(&self, key_elapsed: f32, key_length: Option<f32>) -> f32 {
         match self {
             Gain::Const(v) => *v,
-            Gain::ADSREnvelope(e) => e.level(key_elapsed, key_length),
+            Gain::AdsrEnvelope(e) => e.level(key_elapsed, key_length),
+            Gain::Lfo(lfo) => lfo.level(key_elapsed),
         }
-    }
-}
-
-pub struct Operator {
-    pub waveform: Waveform,
-    pub frequency_modifier: FrequenceModifier,
-    pub gain: Gain,
-}
-
-impl Operator {
-    pub fn output(
-        &self,
-        frequency: f32,
-        key_elapsed: f32,
-        key_length: Option<f32>,
-        input: f32,
-        normalized_sample_index: f32,
-    ) -> f32 {
-        self.gain.level(key_elapsed, key_length)
-            * self.waveform.tick(
-                self.frequency_modifier.apply(frequency),
-                normalized_sample_index,
-                input,
-            )
     }
 
     pub fn done(&self, key_elapsed: f32, key_length: Option<f32>) -> bool {
-        match &self.gain {
+        match self {
             Gain::Const(_) => {
                 if let Some(key_length) = key_length {
                     key_elapsed > key_length
@@ -101,363 +80,119 @@ impl Operator {
                     false
                 }
             }
-            Gain::ADSREnvelope(env) => env.done(key_elapsed, key_length),
+            Gain::Lfo(_) => {
+                if let Some(key_length) = key_length {
+                    key_elapsed > key_length
+                } else {
+                    false
+                }
+            }
+            Gain::AdsrEnvelope(env) => env.done(key_elapsed, key_length),
         }
     }
 }
 
+pub struct Lfo {
+    pub waveform: Waveform,
+    pub frequency: f32,
+}
+
+impl Lfo {
+    pub fn level(&self, key_elapsed: f32) -> f32 {
+        self.waveform.tick(self.frequency, key_elapsed, 0.0)
+    }
+}
+
+pub struct Oscillator {
+    pub waveform: Waveform,
+    pub frequency_modifier: FrequenceModifier,
+}
+
+impl Oscillator {
+    pub fn output(&self, frequency: f32, input: f32, normalized_sample_index: f32) -> f32 {
+        self.waveform.tick(
+            self.frequency_modifier.apply(frequency),
+            normalized_sample_index,
+            input,
+        )
+    }
+}
+
 #[allow(unused)]
-#[derive(Clone)]
-pub enum Input {
-    Operator(usize),
-    Sum(Vec<usize>),
+pub enum Operation {
+    Operator(usize, Box<Operation>),
+    Sum(Vec<Operation>),
+    Factor(Gain, Box<Operation>),
     None,
 }
 
-pub struct InstrumentOperator {
-    pub operator: Operator,
-    pub input: Input,
-    pub last_sample: f32,
-    pub called: bool,
+impl Operation {
+    pub fn eval(
+        &self,
+        key_elapsed: f32,
+        key_length: Option<f32>,
+        eval_operator: &mut impl FnMut(usize, f32) -> f32,
+    ) -> (f32, bool) {
+        match self {
+            Operation::None => (0.0, true),
+            Operation::Operator(index, input) => {
+                let (input, done) = input.eval(key_elapsed, key_length, eval_operator);
+                let input = if done { 0.0 } else { input };
+                (eval_operator(*index, input), false)
+            }
+            Operation::Sum(ref operations) => operations
+                .iter()
+                .map(|operation| operation.eval(key_elapsed, key_length, eval_operator))
+                .reduce(|(acc_value, acc_done), (value, done)| {
+                    (acc_value + value, acc_done && done)
+                })
+                .unwrap_or((0.0, true)),
+            Operation::Factor(gain, operation) => {
+                let (input, done) = operation.eval(key_elapsed, key_length, eval_operator);
+                (
+                    gain.level(key_elapsed, key_length) * input,
+                    gain.done(key_elapsed, key_length) || done,
+                )
+            }
+        }
+    }
 }
 
-impl InstrumentOperator {}
-
 pub struct Instrument {
-    pub operators: Vec<InstrumentOperator>,
+    pub oscillators: Vec<Oscillator>,
+    pub algorithm: Operation,
 }
 
 impl Instrument {
     pub fn get_sample(
-        &mut self,
+        &self,
         on_time: Instant,
         off_time: Option<Instant>,
         current_time: Instant,
         normalized_sample_index: f32,
         frequency: f32,
     ) -> (f32, bool) {
-        self.operators.iter_mut().for_each(|operator| {
-            operator.called = false;
-            operator.last_sample = 0.0;
-        });
         let key_elapsed = current_time.duration_since(on_time).as_secs_f32();
         let key_length = off_time.map(|off_time| off_time.duration_since(on_time).as_secs_f32());
-        let sample = self.get_operator_output(
-            0,
-            frequency,
-            key_elapsed,
-            key_length,
-            normalized_sample_index,
-        );
-        let done = self.operators[0].operator.done(key_elapsed, key_length);
-        (sample, done)
-    }
 
-    pub fn get_operator_output(
-        &mut self,
-        index: usize,
-        frequency: f32,
-        key_elapsed: f32,
-        key_length: Option<f32>,
-        normalized_sample_index: f32,
-    ) -> f32 {
-        if self.operators[index].called {
-            return self.operators[index].last_sample;
-        }
+        let mut memory: Vec<Option<f32>> = vec![None; self.oscillators.len()];
 
-        let input = match self.operators[index].input.clone() {
-            Input::None => 0.0,
-            Input::Operator(input_index) => self.get_operator_output(
-                input_index,
-                frequency,
-                key_elapsed,
-                key_length,
-                normalized_sample_index,
-            ),
-            Input::Sum(ref indices) => indices
-                .iter()
-                .map(|input_index| {
-                    self.get_operator_output(
-                        *input_index,
-                        frequency,
-                        key_elapsed,
-                        key_length,
-                        normalized_sample_index,
-                    )
-                })
-                .sum(),
-        };
-        let res = self.operators[index].operator.output(
-            frequency,
-            key_elapsed,
-            key_length,
-            input,
-            normalized_sample_index,
-        );
-
-        self.operators[index].called = true;
-        self.operators[index].last_sample = res;
-        res
-    }
-
-    pub fn _done(&self, key_elapsed: f32, key_length: Option<f32>) -> bool {
-        self.operators[0].operator.done(key_elapsed, key_length)
-    }
-}
-
-pub trait Oscillator: Send {
-    fn tick(&self, normalized_sample_index: f32) -> f32;
-}
-
-pub struct ConstOscillator {
-    pub value: f32,
-}
-
-impl ConstOscillator {
-    #[allow(unused)]
-    pub fn new(value: f32) -> Box<Self> {
-        Box::new(Self { value })
-    }
-}
-
-impl Oscillator for ConstOscillator {
-    fn tick(&self, _normalized_sample_index: f32) -> f32 {
-        self.value
-    }
-}
-
-pub struct SineOscillator {
-    pub frequency: f32,
-    pub lfo: Option<Box<dyn Oscillator>>,
-}
-
-impl SineOscillator {
-    #[allow(unused)]
-    pub fn new(frequency: f32) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            lfo: None,
-        })
-    }
-
-    #[allow(unused)]
-    pub fn new_fm(frequency: f32, lfo: Box<dyn Oscillator>) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            lfo: Some(lfo),
-        })
-    }
-}
-
-impl Oscillator for SineOscillator {
-    fn tick(&self, normalized_sample_index: f32) -> f32 {
-        let lfo_term = if let Some(ref lfo_osc) = self.lfo {
-            lfo_osc.tick(normalized_sample_index)
-        } else {
-            0.0
-        };
-        (normalized_sample_index * self.frequency * TWO_PI + lfo_term).sin()
-    }
-}
-
-pub struct PulseOscillator {
-    pub frequency: f32,
-    pub duty_cycle: f32,
-    pub lfo: Option<Box<dyn Oscillator>>,
-}
-
-impl PulseOscillator {
-    #[allow(unused)]
-    pub fn new(frequency: f32, duty_cycle: f32) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            duty_cycle,
-            lfo: None,
-        })
-    }
-
-    #[allow(unused)]
-    pub fn new_fm(frequency: f32, duty_cycle: f32, lfo: Box<dyn Oscillator>) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            duty_cycle,
-            lfo: Some(lfo),
-        })
-    }
-}
-
-impl Oscillator for PulseOscillator {
-    fn tick(&self, normalized_sample_index: f32) -> f32 {
-        let lfo_term = if let Some(ref lfo_osc) = self.lfo {
-            lfo_osc.tick(normalized_sample_index)
-        } else {
-            0.0
-        };
-        if (normalized_sample_index * self.frequency + lfo_term) % 1.0 > self.duty_cycle {
-            1.0
-        } else {
-            -1.0
-        }
-    }
-}
-
-pub struct SquareOscillator {
-    pub frequency: f32,
-    pub lfo: Option<Box<dyn Oscillator>>,
-}
-
-impl SquareOscillator {
-    #[allow(unused)]
-    pub fn new(frequency: f32) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            lfo: None,
-        })
-    }
-
-    #[allow(unused)]
-    pub fn new_fm(frequency: f32, lfo: Box<dyn Oscillator>) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            lfo: Some(lfo),
-        })
-    }
-}
-
-impl Oscillator for SquareOscillator {
-    fn tick(&self, normalized_sample_index: f32) -> f32 {
-        let lfo_term = if let Some(ref lfo_osc) = self.lfo {
-            lfo_osc.tick(normalized_sample_index)
-        } else {
-            0.0
-        };
-        if (normalized_sample_index * self.frequency + lfo_term) % 1.0 > 0.5 {
-            1.0
-        } else {
-            -1.0
-        }
-    }
-}
-
-pub struct SawOscillator {
-    pub frequency: f32,
-    pub lfo: Option<Box<dyn Oscillator>>,
-}
-
-impl SawOscillator {
-    #[allow(unused)]
-    pub fn new(frequency: f32) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            lfo: None,
-        })
-    }
-
-    #[allow(unused)]
-    pub fn new_fm(frequency: f32, lfo: Box<dyn Oscillator>) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            lfo: Some(lfo),
-        })
-    }
-}
-
-impl Oscillator for SawOscillator {
-    fn tick(&self, normalized_sample_index: f32) -> f32 {
-        let lfo_term = if let Some(ref lfo_osc) = self.lfo {
-            lfo_osc.tick(normalized_sample_index)
-        } else {
-            0.0
-        };
-        (normalized_sample_index * self.frequency + lfo_term) % 1.0
-    }
-}
-
-pub struct TriangleOscillator {
-    pub frequency: f32,
-    pub lfo: Option<Box<dyn Oscillator>>,
-}
-
-impl TriangleOscillator {
-    #[allow(unused)]
-    pub fn new(frequency: f32) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            lfo: None,
-        })
-    }
-
-    #[allow(unused)]
-    pub fn new_fm(frequency: f32, lfo: Box<dyn Oscillator>) -> Box<Self> {
-        Box::new(Self {
-            frequency,
-            lfo: Some(lfo),
-        })
-    }
-}
-
-impl Oscillator for TriangleOscillator {
-    fn tick(&self, normalized_sample_index: f32) -> f32 {
-        let lfo_term = if let Some(ref lfo_osc) = self.lfo {
-            lfo_osc.tick(normalized_sample_index)
-        } else {
-            0.0
+        let mut eval = |index: usize, input: f32| {
+            if let Some(value) = memory[index] {
+                value
+            } else {
+                let value =
+                    self.oscillators[index].output(frequency, input, normalized_sample_index);
+                memory[index] = Some(value);
+                value
+            }
         };
 
-        let phase = normalized_sample_index * self.frequency + lfo_term;
-
-        4.0 * (phase - (phase + 0.5).floor()).abs() - 1.0
+        self.algorithm.eval(key_elapsed, key_length, &mut eval)
     }
 }
 
-pub struct SumOscillator {
-    pub oscillators: Vec<Box<dyn Oscillator>>,
-}
-
-impl SumOscillator {
-    #[allow(unused)]
-    pub fn new(oscillators: Vec<Box<dyn Oscillator>>) -> Box<Self> {
-        Box::new(Self { oscillators })
-    }
-}
-
-impl Oscillator for SumOscillator {
-    fn tick(&self, normalized_sample_index: f32) -> f32 {
-        self.oscillators
-            .iter()
-            .map(|oscillator| oscillator.tick(normalized_sample_index))
-            .sum()
-    }
-}
-
-pub struct ProdOscillator {
-    pub oscillators: Vec<Box<dyn Oscillator>>,
-}
-
-impl ProdOscillator {
-    #[allow(unused)]
-    pub fn new(oscillators: Vec<Box<dyn Oscillator>>) -> Box<Self> {
-        Box::new(Self { oscillators })
-    }
-
-    #[allow(unused)]
-    pub fn by_const(factor: f32, oscillator: Box<dyn Oscillator>) -> Box<Self> {
-        Box::new(Self {
-            oscillators: vec![ConstOscillator::new(factor), oscillator],
-        })
-    }
-}
-
-impl Oscillator for ProdOscillator {
-    fn tick(&self, normalized_sample_index: f32) -> f32 {
-        self.oscillators
-            .iter()
-            .map(|oscillator| oscillator.tick(normalized_sample_index))
-            .product()
-    }
-}
-
-pub struct ADSREnvelope {
+pub struct AdsrEnvelope {
     pub attack_time: f32,
     pub decay_time: f32,
     pub release_time: f32,
@@ -465,7 +200,7 @@ pub struct ADSREnvelope {
     pub start_level: f32,
 }
 
-impl ADSREnvelope {
+impl AdsrEnvelope {
     fn level(&self, key_elapsed: f32, key_length: Option<f32>) -> f32 {
         if key_elapsed < self.attack_time {
             return self.start_level * key_elapsed / self.attack_time;

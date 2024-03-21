@@ -1,6 +1,6 @@
 use crate::engine::{
-    ADSREnvelope, Engine, FrequenceModifier, Gain, Input, Instrument, InstrumentOperator, Note,
-    Operator, Waveform,
+    AdsrEnvelope, Engine, FrequenceModifier, Gain, Instrument, Note, Operation, Oscillator,
+    Waveform,
 };
 use anyhow::{anyhow, Result};
 use cpal::{
@@ -81,32 +81,30 @@ where
     let mut engine = Engine::new(config.sample_rate.0);
 
     engine.add_instrument(Instrument {
-        operators: vec![
-            InstrumentOperator {
-                operator: Operator {
-                    waveform: Waveform::Saw,
-                    frequency_modifier: FrequenceModifier::None,
-                    gain: Gain::ADSREnvelope(ADSREnvelope {
-                        attack_time: 0.01,
-                        decay_time: 0.02,
-                        release_time: 0.5,
-                        sustained_level: 0.3,
-                        start_level: 0.4,
-                    }),
-                },
-                input: Input::Operator(1),
-                last_sample: 0.0,
-                called: false,
+        algorithm: Operation::Factor(
+            Gain::AdsrEnvelope(AdsrEnvelope {
+                attack_time: 0.01,
+                decay_time: 0.02,
+                release_time: 0.5,
+                sustained_level: 0.3,
+                start_level: 0.4,
+            }),
+            Box::new(Operation::Operator(
+                0,
+                Box::new(Operation::Factor(
+                    Gain::Const(0.5),
+                    Box::new(Operation::Operator(1, Box::new(Operation::None))),
+                )),
+            )),
+        ),
+        oscillators: vec![
+            Oscillator {
+                waveform: Waveform::Saw,
+                frequency_modifier: FrequenceModifier::None,
             },
-            InstrumentOperator {
-                operator: Operator {
-                    waveform: Waveform::Sine,
-                    frequency_modifier: FrequenceModifier::Fixed(5.0),
-                    gain: Gain::Const(0.5),
-                },
-                input: Input::None,
-                last_sample: 0.0,
-                called: false,
+            Oscillator {
+                waveform: Waveform::Sine,
+                frequency_modifier: FrequenceModifier::Fixed(5.0),
             },
         ],
     });
