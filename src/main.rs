@@ -1,5 +1,7 @@
 mod app;
 mod engine;
+mod sequencer;
+mod ui;
 
 fn _db_to_volume(db: f32) -> f32 {
     (10.0_f32).powf(0.05 * db)

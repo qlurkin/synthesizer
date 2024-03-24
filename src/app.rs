@@ -1,13 +1,16 @@
-use crate::engine::{
-    AdsrEnvelope, Engine, FrequenceModifier, Gain, Instrument, Note, Operation, Oscillator,
-    Waveform,
+use crate::{
+    engine::{
+        AdsrEnvelope, Engine, FrequenceModifier, Gain, Instrument, Note, Operation, Oscillator,
+        Waveform,
+    },
+    sequencer::Sequencer,
+    ui::{handle_events, render},
 };
 use anyhow::{anyhow, Result};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
     FromSample, Sample, SizedSample,
 };
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Rect},
@@ -18,12 +21,10 @@ use ratatui::{
         block::{Position, Title},
         Block, Borders, Paragraph, Widget,
     },
-    Frame,
 };
 use std::{
     io::stdout,
     sync::mpsc::{self, Sender},
-    time::Instant,
 };
 
 use crossterm::{execute, terminal::*};
@@ -147,9 +148,9 @@ pub struct App {
     _device: cpal::Device,
     _config: cpal::StreamConfig,
     _stream: cpal::Stream,
-    tx: Sender<Note>,
     frequency: f32,
     exit: bool,
+    sequencer: Sequencer,
 }
 
 impl App {
@@ -162,9 +163,12 @@ impl App {
             _device: device,
             _config: config,
             _stream: stream,
-            tx,
             frequency: 440.0,
             exit: false,
+            sequencer: Sequencer {
+                frequency: 440.0,
+                tx,
+            },
         })
     }
 
@@ -174,70 +178,19 @@ impl App {
         enable_raw_mode()?;
         let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
         while !self.exit {
-            terminal.draw(|frame| self.render_frame(frame))?;
-            self.handle_events()?;
+            // terminal.draw(|frame| self.render_frame(frame))?;
+            terminal.draw(|frame| render(frame, &self.sequencer))?;
+            self.exit = handle_events(&mut self.sequencer)?;
         }
         execute!(stdout(), LeaveAlternateScreen)?;
         disable_raw_mode()?;
         Ok(())
     }
-
-    fn render_frame(&self, frame: &mut Frame) {
-        frame.render_widget(self, frame.size());
-    }
-
-    fn handle_events(&mut self) -> Result<()> {
-        match event::read()? {
-            // it's important to check that the event is a key press event as
-            // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                self.handle_key_event(key_event)
-            }
-            _ => {}
-        };
-        Ok(())
-    }
-
-    fn handle_key_event(&mut self, key_event: KeyEvent) {
-        match key_event.code {
-            KeyCode::Char('q') => self.exit(),
-            KeyCode::Left => self.decrement_counter(),
-            KeyCode::Right => self.increment_counter(),
-            KeyCode::Char(' ') => self.play_note(),
-            _ => {}
-        }
-    }
-
-    fn exit(&mut self) {
-        self.exit = true;
-    }
-
-    fn increment_counter(&mut self) {
-        self.frequency += 100.0;
-        // self.tx.send(self.frequency).unwrap();
-    }
-
-    fn decrement_counter(&mut self) {
-        self.frequency -= 100.0;
-        // self.tx.send(self.frequency).unwrap();
-    }
-
-    fn play_note(&mut self) {
-        let on_time = Instant::now();
-        let note = Note {
-            frequency: self.frequency,
-            on_time,
-            off_time: Some(on_time),
-            instrument: 0,
-            done: false,
-        };
-        self.tx.send(note).unwrap();
-    }
 }
 
 impl Widget for &App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let title = Title::from(" Counter App Tutorial ".bold());
+        let title = Title::from(" KentaW Tracker ".bold());
         let instructions = Title::from(Line::from(vec![
             " Decrement ".into(),
             "<Left>".blue().bold(),
@@ -257,7 +210,7 @@ impl Widget for &App {
             .border_set(symbols::border::THICK);
 
         let counter_text = Text::from(vec![Line::from(vec![
-            "Value: ".into(),
+            "Frequency: ".into(),
             self.frequency.to_string().yellow(),
         ])]);
 
