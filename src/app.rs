@@ -4,7 +4,7 @@ use crate::{
         Waveform,
     },
     sequencer::Sequencer,
-    ui::{handle_events, render},
+    ui::Ui,
 };
 use anyhow::{anyhow, Result};
 use cpal::{
@@ -150,7 +150,7 @@ pub struct App {
     _stream: cpal::Stream,
     frequency: f32,
     exit: bool,
-    sequencer: Sequencer,
+    ui: Ui,
 }
 
 impl App {
@@ -165,9 +165,11 @@ impl App {
             _stream: stream,
             frequency: 440.0,
             exit: false,
-            sequencer: Sequencer {
-                frequency: 440.0,
-                tx,
+            ui: Ui {
+                sequencer: Sequencer {
+                    frequency: 440.0,
+                    tx,
+                },
             },
         })
     }
@@ -179,8 +181,8 @@ impl App {
         let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
         while !self.exit {
             // terminal.draw(|frame| self.render_frame(frame))?;
-            terminal.draw(|frame| render(frame, &self.sequencer))?;
-            self.exit = handle_events(&mut self.sequencer)?;
+            terminal.draw(|frame| self.ui.render_frame(frame))?;
+            self.exit = self.ui.handle_events()?;
         }
         execute!(stdout(), LeaveAlternateScreen)?;
         disable_raw_mode()?;
