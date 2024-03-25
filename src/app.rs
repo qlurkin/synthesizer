@@ -1,7 +1,7 @@
 use crate::{
     engine::{
-        AdsrEnvelope, Engine, FrequenceModifier, Gain, Instrument, Message, Note, Operation,
-        Oscillator, Waveform,
+        AdsrEnvelope, Engine, FrequenceModifier, Gain, Instrument, Message, Operation, Oscillator,
+        Waveform,
     },
     sequencer::Sequencer,
     ui::Ui,
