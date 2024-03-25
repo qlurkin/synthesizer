@@ -91,14 +91,10 @@ impl Sequencer {
     }
 
     pub fn semi_tone_up(&mut self) {
-        // self.frequency *= 2.0_f32.powf(1.0 / 12.0);
-        // self.tx.send(self.frequency).unwrap();
         self.tone = self.tone.up(1);
     }
 
     pub fn semi_tone_down(&mut self) {
-        // self.frequency /= 2.0_f32.powf(1.0 / 12.0);
-        // self.tx.send(self.frequency).unwrap();
         self.tone = self.tone.down(1);
     }
 

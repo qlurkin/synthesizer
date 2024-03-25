@@ -245,7 +245,7 @@ pub struct Note {
 
 pub enum Message {
     Note { note: Note, track: u32 },
-    Kill { track: u32 },
+    Kill { track: u32, off_time: Instant },
 }
 
 pub struct Engine {
@@ -274,8 +274,17 @@ impl Engine {
         self.advance_sample();
         let normalized_sample_index = self.sample_index as f32 / self.sample_rate as f32;
         let current_time = Instant::now();
+
         self.notes.retain(|note| !note.done);
-        let value = self
+        self.tracks.iter_mut().for_each(|note| {
+            if let Some(n) = note {
+                if n.done {
+                    note.take();
+                }
+            }
+        });
+
+        let decaying: f32 = self
             .notes
             .iter_mut()
             .map(|note| {
@@ -291,18 +300,45 @@ impl Engine {
                 sample
             })
             .sum();
-        value
+        let in_tracks: f32 = self
+            .tracks
+            .iter_mut()
+            .map(|note| {
+                if let Some(note) = note {
+                    let (sample, done) = self.instruments[note.instrument].get_sample(
+                        note.on_time,
+                        note.off_time,
+                        current_time,
+                        normalized_sample_index,
+                        note.frequency,
+                    );
+                    note.done = done;
+                    sample
+                } else {
+                    0.0
+                }
+            })
+            .sum();
+        decaying + in_tracks
     }
 
     pub fn handle_message(&mut self, message: Message) {
         match message {
-            Message::Note { note, track } => self.add_note(note),
-            _ => {}
+            Message::Note { note, track } => self.add_note(note, track),
+            Message::Kill { track, off_time } => self.kill_note(track, off_time),
         }
     }
 
-    pub fn add_note(&mut self, note: Note) {
-        self.notes.push(note);
+    pub fn kill_note(&mut self, track: u32, off_time: Instant) {
+        if let Some(mut old_note) = self.tracks[track as usize].take() {
+            old_note.off_time = Some(off_time);
+            self.notes.push(old_note);
+        }
+    }
+
+    pub fn add_note(&mut self, note: Note, track: u32) {
+        self.kill_note(track, note.on_time);
+        self.tracks[track as usize] = Some(note);
     }
 
     pub fn add_instrument(&mut self, instrument: Instrument) {
