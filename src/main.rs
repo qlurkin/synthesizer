@@ -1,4 +1,5 @@
 mod app;
+mod config;
 mod engine;
 mod sequencer;
 mod ui;

@@ -77,7 +77,13 @@ impl Widget for &Ui {
 
         let counter_text = Text::from(vec![Line::from(vec![
             "Frequency: ".into(),
-            self.sequencer.frequency.to_string().yellow(),
+            self.sequencer.tone.get_frequency().to_string().yellow(),
+            " Semitone: ".into(),
+            self.sequencer.tone.semitone.to_string().yellow(),
+            " Octave: ".into(),
+            self.sequencer.tone.octave.to_string().yellow(),
+            " Notation: ".into(),
+            self.sequencer.tone.get_string().yellow(),
         ])]);
 
         Paragraph::new(counter_text)

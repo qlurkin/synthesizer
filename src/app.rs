@@ -1,7 +1,7 @@
 use crate::{
     engine::{
-        AdsrEnvelope, Engine, FrequenceModifier, Gain, Instrument, Note, Operation, Oscillator,
-        Waveform,
+        AdsrEnvelope, Engine, FrequenceModifier, Gain, Instrument, Message, Note, Operation,
+        Oscillator, Waveform,
     },
     sequencer::Sequencer,
     ui::Ui,
@@ -35,7 +35,7 @@ pub fn stream_setup_for() -> Result<(
     cpal::Device,
     cpal::StreamConfig,
     cpal::Stream,
-    Sender<Note>,
+    Sender<Message>,
 )> {
     let (host, device, config) = host_device_setup()?;
 
@@ -73,7 +73,7 @@ pub fn host_device_setup() -> Result<(cpal::Host, cpal::Device, cpal::SupportedS
 pub fn make_stream<T>(
     device: &cpal::Device,
     config: cpal::StreamConfig,
-) -> Result<(cpal::Stream, cpal::StreamConfig, Sender<Note>)>
+) -> Result<(cpal::Stream, cpal::StreamConfig, Sender<Message>)>
 where
     T: SizedSample + FromSample<f32>,
 {
@@ -117,8 +117,8 @@ where
     let stream = device.build_output_stream(
         &config,
         move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
-            if let Ok(note) = rx.try_recv() {
-                engine.add_note(note);
+            if let Ok(msg) = rx.try_recv() {
+                engine.handle_message(msg);
             }
             process_frame(output, &mut engine, num_channels)
         },
@@ -166,10 +166,7 @@ impl App {
             frequency: 440.0,
             exit: false,
             ui: Ui {
-                sequencer: Sequencer {
-                    frequency: 440.0,
-                    tx,
-                },
+                sequencer: Sequencer::new(tx),
             },
         })
     }

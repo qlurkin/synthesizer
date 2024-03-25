@@ -1,3 +1,4 @@
+use crate::config::NB_TRACKS;
 use std::time::Instant;
 
 const TWO_PI: f32 = 2.0 * std::f32::consts::PI;
@@ -242,11 +243,17 @@ pub struct Note {
     pub done: bool,
 }
 
+pub enum Message {
+    Note { note: Note, track: u32 },
+    Kill { track: u32 },
+}
+
 pub struct Engine {
     sample_rate: u32,
     sample_index: u32,
     notes: Vec<Note>,
     instruments: Vec<Instrument>,
+    tracks: [Option<Note>; NB_TRACKS as usize],
 }
 impl Engine {
     pub fn new(sample_rate: u32) -> Self {
@@ -255,6 +262,7 @@ impl Engine {
             sample_rate,
             sample_index: 0,
             instruments: Vec::new(),
+            tracks: Default::default(),
         }
     }
 
@@ -284,6 +292,13 @@ impl Engine {
             })
             .sum();
         value
+    }
+
+    pub fn handle_message(&mut self, message: Message) {
+        match message {
+            Message::Note { note, track } => self.add_note(note),
+            _ => {}
+        }
     }
 
     pub fn add_note(&mut self, note: Note) {
