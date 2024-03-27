@@ -2,6 +2,9 @@ use std::{sync::mpsc::Sender, time::Instant};
 
 use crate::config::NB_TRACKS;
 use crate::engine::{Message, Note};
+use fundsp::hacker::*;
+use fundsp::sound::*;
+use funutd::*;
 
 pub struct Tone {
     pub octave: i32,
@@ -72,16 +75,16 @@ pub struct Chain {
     pub phrases: [Option<Phrase>; 16],
 }
 
-pub struct Sequencer {
+pub struct Tracker {
     pub tone: Tone,
-    pub tx: Sender<Message>,
+    pub frontend: fundsp::sequencer::Sequencer64,
     pub song: Vec<[Option<Chain>; NB_TRACKS as usize]>,
 }
 
-impl Sequencer {
-    pub fn new(tx: Sender<Message>) -> Self {
+impl Tracker {
+    pub fn new(frontend: fundsp::sequencer::Sequencer64) -> Self {
         Self {
-            tx,
+            frontend,
             tone: Tone {
                 octave: 4,
                 semitone: 0,
@@ -107,6 +110,15 @@ impl Sequencer {
             instrument: 0,
             done: false,
         };
-        self.tx.send(Message::Note { note, track: 0 }).unwrap();
+        // self.tx.send(Message::Note { note, track: 0 }).unwrap();
+        let mut rng = Rnd::new();
+        self.frontend.push_relative(
+            0.0,
+            1.0,
+            Fade::Smooth,
+            0.0,
+            0.25,
+            Box::new(bassdrum(0.2 + rng.f64() * 0.02, 180.0, 60.0) >> pan(0.0)),
+        );
     }
 }

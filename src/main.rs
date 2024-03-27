@@ -1,7 +1,7 @@
 mod app;
 mod config;
 mod engine;
-mod sequencer;
+mod tracker;
 mod ui;
 
 fn _db_to_volume(db: f32) -> f32 {

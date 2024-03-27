@@ -1,4 +1,7 @@
 use crate::config::NB_TRACKS;
+use fundsp::hacker::*;
+use fundsp::sound::*;
+use funutd::*;
 use std::time::Instant;
 
 const TWO_PI: f32 = 2.0 * std::f32::consts::PI;
@@ -254,15 +257,18 @@ pub struct Engine {
     notes: Vec<Note>,
     instruments: Vec<Instrument>,
     tracks: [Option<Note>; NB_TRACKS as usize],
+    unit: Box<dyn AudioUnit64>,
 }
 impl Engine {
     pub fn new(sample_rate: u32) -> Self {
+        let mut rng = Rnd::new();
         Self {
             notes: Vec::new(),
             sample_rate,
             sample_index: 0,
             instruments: Vec::new(),
             tracks: Default::default(),
+            unit: Box::new(bassdrum(0.2 + rng.f64() * 0.02, 180.0, 60.0) >> pan(0.0)),
         }
     }
 
@@ -270,56 +276,57 @@ impl Engine {
         self.sample_index = (self.sample_index + 1) % self.sample_rate;
     }
 
-    pub fn tick(&mut self) -> f32 {
-        self.advance_sample();
-        let normalized_sample_index = self.sample_index as f32 / self.sample_rate as f32;
-        let current_time = Instant::now();
-
-        self.notes.retain(|note| !note.done);
-        self.tracks.iter_mut().for_each(|note| {
-            if let Some(n) = note {
-                if n.done {
-                    note.take();
-                }
-            }
-        });
-
-        let decaying: f32 = self
-            .notes
-            .iter_mut()
-            .map(|note| {
-                //note.tick(current_time, normalized_sample_index)
-                let (sample, done) = self.instruments[note.instrument].get_sample(
-                    note.on_time,
-                    note.off_time,
-                    current_time,
-                    normalized_sample_index,
-                    note.frequency,
-                );
-                note.done = done;
-                sample
-            })
-            .sum();
-        let in_tracks: f32 = self
-            .tracks
-            .iter_mut()
-            .map(|note| {
-                if let Some(note) = note {
-                    let (sample, done) = self.instruments[note.instrument].get_sample(
-                        note.on_time,
-                        note.off_time,
-                        current_time,
-                        normalized_sample_index,
-                        note.frequency,
-                    );
-                    note.done = done;
-                    sample
-                } else {
-                    0.0
-                }
-            })
-            .sum();
-        decaying + in_tracks
+    pub fn tick(&mut self) -> (f64, f64) {
+        // self.advance_sample();
+        // let normalized_sample_index = self.sample_index as f32 / self.sample_rate as f32;
+        // let current_time = Instant::now();
+        //
+        // self.notes.retain(|note| !note.done);
+        // self.tracks.iter_mut().for_each(|note| {
+        //     if let Some(n) = note {
+        //         if n.done {
+        //             note.take();
+        //         }
+        //     }
+        // });
+        //
+        // let decaying: f32 = self
+        //     .notes
+        //     .iter_mut()
+        //     .map(|note| {
+        //         //note.tick(current_time, normalized_sample_index)
+        //         let (sample, done) = self.instruments[note.instrument].get_sample(
+        //             note.on_time,
+        //             note.off_time,
+        //             current_time,
+        //             normalized_sample_index,
+        //             note.frequency,
+        //         );
+        //         note.done = done;
+        //         sample
+        //     })
+        //     .sum();
+        // let in_tracks: f32 = self
+        //     .tracks
+        //     .iter_mut()
+        //     .map(|note| {
+        //         if let Some(note) = note {
+        //             let (sample, done) = self.instruments[note.instrument].get_sample(
+        //                 note.on_time,
+        //                 note.off_time,
+        //                 current_time,
+        //                 normalized_sample_index,
+        //                 note.frequency,
+        //             );
+        //             note.done = done;
+        //             sample
+        //         } else {
+        //             0.0
+        //         }
+        //     })
+        //     .sum();
+        // decaying + in_tracks
+        self.unit.get_stereo()
     }
 
     pub fn handle_message(&mut self, message: Message) {
@@ -339,6 +346,8 @@ impl Engine {
     pub fn add_note(&mut self, note: Note, track: u32) {
         self.kill_note(track, note.on_time);
         self.tracks[track as usize] = Some(note);
+
+        self.unit.reset();
     }
 
     pub fn add_instrument(&mut self, instrument: Instrument) {

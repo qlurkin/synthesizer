@@ -8,10 +8,10 @@ use ratatui::{
     },
 };
 
-use crate::sequencer::Sequencer;
+use crate::tracker::Tracker;
 
 pub struct Ui {
-    pub sequencer: Sequencer,
+    pub sequencer: Tracker,
 }
 
 impl Ui {
