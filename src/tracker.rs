@@ -1,7 +1,4 @@
-use std::{sync::mpsc::Sender, time::Instant};
-
 use crate::config::NB_TRACKS;
-use crate::engine::{Message, Note};
 use fundsp::hacker::*;
 use fundsp::sound::*;
 use funutd::*;
@@ -102,15 +99,6 @@ impl Tracker {
     }
 
     pub fn play_note(&mut self) {
-        let on_time = Instant::now();
-        let note = Note {
-            frequency: self.tone.get_frequency(),
-            on_time,
-            off_time: Some(on_time),
-            instrument: 0,
-            done: false,
-        };
-        // self.tx.send(Message::Note { note, track: 0 }).unwrap();
         let mut rng = Rnd::new();
         self.frontend.push_relative(
             0.0,

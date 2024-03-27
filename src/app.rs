@@ -1,15 +1,8 @@
-use crate::{
-    engine::{
-        AdsrEnvelope, Engine, FrequenceModifier, Gain, Instrument, Message, Operation, Oscillator,
-        Waveform,
-    },
-    tracker::Tracker,
-    ui::Ui,
-};
+use crate::{tracker::Tracker, ui::Ui};
 use anyhow::{anyhow, Result};
 use cpal::{
     traits::{DeviceTrait, HostTrait, StreamTrait},
-    FromSample, Sample, SizedSample,
+    FromSample, SizedSample,
 };
 use ratatui::{
     buffer::Buffer,
@@ -22,13 +15,10 @@ use ratatui::{
         Block, Borders, Paragraph, Widget,
     },
 };
-use std::{
-    io::stdout,
-    sync::mpsc::{self, Sender},
-};
+use std::io::stdout;
 
 use crossterm::{execute, terminal::*};
-use fundsp::audiounit::AudioUnit64;
+use fundsp::hacker::*;
 use ratatui::prelude::*;
 
 pub fn stream_setup_for(
@@ -59,10 +49,8 @@ pub fn host_device_setup() -> Result<(cpal::Host, cpal::Device, cpal::SupportedS
     let device = host
         .default_output_device()
         .ok_or_else(|| anyhow!("Default output device is not available"))?;
-    // println!("Output device : {}", device.name()?);
 
     let config = device.default_output_config()?;
-    // println!("Default output config : {:?}", config);
 
     Ok((host, device, config))
 }
@@ -77,49 +65,18 @@ where
 {
     let num_channels = config.channels as usize;
 
-    // let mut engine = Engine::new(config.sample_rate.0);
-
-    // engine.add_instrument(Instrument {
-    //     algorithm: Operation::Factor(
-    //         Gain::AdsrEnvelope(AdsrEnvelope {
-    //             attack_time: 0.01,
-    //             decay_time: 0.02,
-    //             release_time: 0.5,
-    //             sustained_level: 0.3,
-    //             start_level: 0.4,
-    //         }),
-    //         Box::new(Operation::Oscillator(
-    //             0,
-    //             Box::new(Operation::Factor(
-    //                 Gain::Const(0.5),
-    //                 Box::new(Operation::Oscillator(1, Box::new(Operation::None))),
-    //             )),
-    //         )),
-    //     ),
-    //     oscillators: vec![
-    //         Oscillator {
-    //             waveform: Waveform::Saw,
-    //             frequency_modifier: FrequenceModifier::None,
-    //         },
-    //         Oscillator {
-    //             waveform: Waveform::Sine,
-    //             frequency_modifier: FrequenceModifier::Fixed(5.0),
-    //         },
-    //     ],
-    // });
-
     let err_fn = |err| eprintln!("Error building output sound stream: {}", err);
 
-    // let (tx, rx) = mpsc::channel();
-    let mut next_sample = move || backend.get_stereo();
+    let mut pipeline = multipass() & (5.0 * reverb_stereo(10.0, 0.5));
+
+    let mut next_sample = move || {
+        let (left_sample, right_sample) = backend.get_stereo();
+        pipeline.filter_stereo(left_sample, right_sample)
+    };
 
     let stream = device.build_output_stream(
         &config,
         move |output: &mut [T], _: &cpal::OutputCallbackInfo| {
-            // if let Ok(msg) = rx.try_recv() {
-            //     engine.handle_message(msg);
-            // }
-            //process_frame(output, &mut engine, num_channels)
             write_data(output, num_channels, &mut next_sample)
         },
         err_fn,
