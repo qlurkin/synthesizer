@@ -1,11 +1,12 @@
-use crate::config::NB_TRACKS;
 use fundsp::hacker::*;
 use fundsp::sound::*;
 use funutd::*;
 
+pub const NB_TRACKS: usize = 8;
+
 pub struct Tone {
-    pub octave: i32,
-    pub semitone: i32,
+    octave: i32,
+    semitone: i32,
 }
 
 impl Tone {
@@ -60,34 +61,128 @@ impl Tone {
     }
 }
 
+pub struct Instrument {
+    unit: Box<dyn AudioUnit64>,
+    dry_level: f64,
+    reverb_level: f64,
+    chorus_level: f64,
+    delay_level: f64,
+    pan: f64,
+}
+
+impl Instrument {
+    pub fn new(unit: Box<dyn AudioUnit64>) -> Self {
+        Self {
+            unit,
+            dry_level: 1.0,
+            reverb_level: 0.2,
+            chorus_level: 0.1,
+            delay_level: 0.1,
+            pan: 0.0,
+        }
+    }
+
+    pub fn get_unit(&self) -> Box<dyn AudioUnit64> {
+        let net = Net64::wrap(self.unit.clone());
+        let net = net >> pan(self.pan);
+
+        let net = net
+            >> multisplit::<U2, U4>()
+            >> ((self.dry_level * multipass::<U2>())
+                | (self.reverb_level * multipass::<U2>())
+                | (self.chorus_level * multipass::<U2>())
+                | (self.delay_level * multipass::<U2>()));
+
+        Box::new(net)
+    }
+}
+
 pub struct Step {
-    pub tone: Tone,
+    tone: Tone,
+    instrument: usize,
+    velocity: u8,
 }
 
 pub struct Phrase {
-    pub steps: [Option<Step>; 16],
+    steps: Vec<Option<Step>>,
 }
 
 pub struct Chain {
-    pub phrases: [Option<Phrase>; 16],
+    phrases: Vec<Option<usize>>,
+}
+
+pub struct Track {
+    chains: Vec<Option<usize>>,
+    event_id: Option<EventId>,
+    mix_level: Shared<f64>,
+}
+
+impl Track {
+    fn new() -> Self {
+        Self {
+            chains: std::iter::repeat_with(|| None).take(256).collect(),
+            event_id: None,
+            mix_level: shared(0.5),
+        }
+    }
 }
 
 pub struct Tracker {
     pub tone: Tone,
-    pub frontend: fundsp::sequencer::Sequencer64,
-    pub song: Vec<[Option<Chain>; NB_TRACKS as usize]>,
+    tracks: Vec<Track>,
+    chains: Vec<Option<Chain>>,
+    phrases: Vec<Option<Phrase>>,
+    instruments: Vec<Option<Instrument>>,
+    sequencer: Sequencer64,
+    net: Net64,
 }
 
 impl Tracker {
-    pub fn new(frontend: fundsp::sequencer::Sequencer64) -> Self {
-        Self {
-            frontend,
+    pub fn new(sample_rate: f64) -> (Self, BlockRateAdapter64) {
+        let mut sequencer = Sequencer64::new(false, 8);
+        let sequencer_backend = sequencer.backend();
+        println!("outputs {}", sequencer_backend.outputs());
+
+        let mut net = Net64::wrap(Box::new(sequencer_backend));
+
+        println!("outputs {}", net.outputs());
+
+        net = net
+            >> (multipass::<U2>()
+                | reverb2_stereo(10.0, 2.0, 0.5, 1.0, lowpole_hz(8000.0))
+                | chorus(0, 0.015, 0.005, 0.5)
+                | chorus(0, 0.015, 0.005, 0.5)
+                | feedback(delay(1.0) * db_amp(-3.0))
+                | feedback(delay(1.0) * db_amp(-3.0)))
+            >> multijoin::<U2, U4>();
+
+        net.set_sample_rate(sample_rate);
+
+        let backend = BlockRateAdapter64::new(Box::new(net.backend()));
+
+        let mut tracker = Self {
             tone: Tone {
                 octave: 4,
                 semitone: 0,
             },
-            song: Vec::with_capacity(16),
-        }
+            tracks: std::iter::repeat_with(Track::new).take(NB_TRACKS).collect(),
+            phrases: std::iter::repeat_with(|| None).take(256).collect(),
+            chains: std::iter::repeat_with(|| None).take(256).collect(),
+            instruments: Vec::new(),
+            sequencer,
+            net,
+        };
+
+        let mut rng = Rnd::new();
+        tracker
+            .instruments
+            .push(Some(Instrument::new(Box::new(bassdrum(
+                0.2 + rng.f64() * 0.02,
+                180.0,
+                60.0,
+            )))));
+
+        (tracker, backend)
     }
 
     pub fn semi_tone_up(&mut self) {
@@ -99,14 +194,9 @@ impl Tracker {
     }
 
     pub fn play_note(&mut self) {
-        let mut rng = Rnd::new();
-        self.frontend.push_relative(
-            0.0,
-            1.0,
-            Fade::Smooth,
-            0.0,
-            0.25,
-            Box::new(bassdrum(0.2 + rng.f64() * 0.02, 180.0, 60.0) >> pan(0.0)),
-        );
+        if let Some(ref instrument) = self.instruments[0] {
+            self.sequencer
+                .push_relative(0.0, 1.0, Fade::Smooth, 0.0, 0.25, instrument.get_unit());
+        }
     }
 }

@@ -11,7 +11,7 @@ use ratatui::{
 use crate::tracker::Tracker;
 
 pub struct Ui {
-    pub sequencer: Tracker,
+    pub tracker: Tracker,
 }
 
 impl Ui {
@@ -38,15 +38,15 @@ impl Ui {
         match key_event.code {
             KeyCode::Char('q') => true,
             KeyCode::Left => {
-                self.sequencer.semi_tone_down();
+                self.tracker.semi_tone_down();
                 false
             }
             KeyCode::Right => {
-                self.sequencer.semi_tone_up();
+                self.tracker.semi_tone_up();
                 false
             }
             KeyCode::Char(' ') => {
-                self.sequencer.play_note();
+                self.tracker.play_note();
                 false
             }
             _ => false,
@@ -77,13 +77,9 @@ impl Widget for &Ui {
 
         let counter_text = Text::from(vec![Line::from(vec![
             "Frequency: ".into(),
-            self.sequencer.tone.get_frequency().to_string().yellow(),
-            " Semitone: ".into(),
-            self.sequencer.tone.semitone.to_string().yellow(),
-            " Octave: ".into(),
-            self.sequencer.tone.octave.to_string().yellow(),
+            self.tracker.tone.get_frequency().to_string().yellow(),
             " Notation: ".into(),
-            self.sequencer.tone.get_string().yellow(),
+            self.tracker.tone.get_string().yellow(),
         ])]);
 
         Paragraph::new(counter_text)
