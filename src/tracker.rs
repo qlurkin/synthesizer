@@ -76,19 +76,19 @@ impl Instrument {
             unit,
             dry_level: 1.0,
             reverb_level: 0.2,
-            chorus_level: 0.1,
-            delay_level: 0.1,
+            chorus_level: 0.2,
+            delay_level: 0.2,
             pan: 0.0,
         }
     }
 
-    pub fn get_unit(&self) -> Box<dyn AudioUnit64> {
+    pub fn get_unit(&self, track_mix_level: f64) -> Box<dyn AudioUnit64> {
         let net = Net64::wrap(self.unit.clone());
         let net = net >> pan(self.pan);
 
         let net = net
             >> multisplit::<U2, U4>()
-            >> ((self.dry_level * multipass::<U2>())
+            >> ((track_mix_level * self.dry_level * multipass::<U2>())
                 | (self.reverb_level * multipass::<U2>())
                 | (self.chorus_level * multipass::<U2>())
                 | (self.delay_level * multipass::<U2>()));
@@ -114,7 +114,7 @@ pub struct Chain {
 pub struct Track {
     chains: Vec<Option<usize>>,
     event_id: Option<EventId>,
-    mix_level: Shared<f64>,
+    pub mix_level: f64,
 }
 
 impl Track {
@@ -122,7 +122,7 @@ impl Track {
         Self {
             chains: std::iter::repeat_with(|| None).take(256).collect(),
             event_id: None,
-            mix_level: shared(0.5),
+            mix_level: 1.0,
         }
     }
 }
@@ -135,26 +135,108 @@ pub struct Tracker {
     instruments: Vec<Option<Instrument>>,
     sequencer: Sequencer64,
     net: Net64,
+    reverb_mix_level: Shared<f64>,
+    chorus_mix_level: Shared<f64>,
+    delay_mix_level: Shared<f64>,
+    chorus_to_reverb_level: Shared<f64>,
+    delay_to_reverb_level: Shared<f64>,
+    reverb_room_size: f64,
+    reverb_time: f64,
+    reverb_diffusion: f64,
+    reverb_modulation_speed: f64,
+    reverb_filter_frequency: f64,
+    chorus_separation: f64,
+    chorus_variation: f64,
+    chorus_mod_frequency: f64,
+    delay_time: f64,
+    delay_decay: f64,
+    reverb: Slot64,
+    chorus: Slot64,
+    delay: Slot64,
 }
 
 impl Tracker {
     pub fn new(sample_rate: f64) -> (Self, BlockRateAdapter64) {
         let mut sequencer = Sequencer64::new(false, 8);
         let sequencer_backend = sequencer.backend();
-        println!("outputs {}", sequencer_backend.outputs());
+        let reverb_mix_level = shared(1.0);
+        let chorus_mix_level = shared(0.0);
+        let delay_mix_level = shared(0.0);
+        let chorus_to_reverb_level = shared(1.0);
+        let delay_to_reverb_level = shared(1.0);
+        let reverb_room_size = 10.0;
+        let reverb_time = 2.0;
+        let reverb_diffusion = 0.5;
+        let reverb_modulation_speed = 1.0;
+        let reverb_filter_frequency = 8000.0;
+        let chorus_separation = 0.015;
+        let chorus_variation = 0.005;
+        let chorus_mod_frequency = 0.5;
+        let delay_time = 1.0;
+        let delay_decay = 3.0;
 
-        let mut net = Net64::wrap(Box::new(sequencer_backend));
+        let (reverb, reverb_backend) = Slot64::new(Box::new(multipass::<U2>()));
+        let (chorus, chorus_backend) = Slot64::new(Box::new(multipass::<U2>()));
+        let (delay, delay_backend) = Slot64::new(Box::new(multipass::<U2>()));
 
-        println!("outputs {}", net.outputs());
+        let mut net = Net64::new(0, 2);
 
-        net = net
-            >> (multipass::<U2>()
-                | reverb2_stereo(10.0, 2.0, 0.5, 1.0, lowpole_hz(8000.0))
-                | chorus(0, 0.015, 0.005, 0.5)
-                | chorus(0, 0.015, 0.005, 0.5)
-                | feedback(delay(1.0) * db_amp(-3.0))
-                | feedback(delay(1.0) * db_amp(-3.0)))
-            >> multijoin::<U2, U4>();
+        let sequencer_id = net.push(Box::new(sequencer_backend));
+        let reverb_id = net.push(Box::new(reverb_backend));
+        let chorus_id = net.push(Box::new(chorus_backend));
+        let delay_id = net.push(Box::new(delay_backend));
+
+        let mixer = net.push(Box::new(
+            multipass::<U2>()
+                + ((multipass::<U1>() * var(&reverb_mix_level))
+                    | (multipass::<U1>() * var(&reverb_mix_level)))
+                + ((multipass::<U1>() * var(&chorus_mix_level))
+                    | (multipass::<U1>() * var(&chorus_mix_level)))
+                + ((multipass::<U1>() * var(&delay_mix_level))
+                    | (multipass::<U1>() * var(&delay_mix_level))),
+        ));
+
+        let reverb_inputs_mixer = net.push(Box::new(
+            multipass::<U2>()
+                + ((multipass::<U1>() * var(&chorus_to_reverb_level))
+                    | (multipass::<U1>() * var(&chorus_to_reverb_level)))
+                + ((multipass::<U1>() * var(&delay_to_reverb_level))
+                    | (multipass::<U1>() * var(&delay_to_reverb_level))),
+        ));
+
+        let chorus_spliter = net.push(Box::new(multisplit::<U2, U2>()));
+        let delay_spliter = net.push(Box::new(multisplit::<U2, U2>()));
+
+        net.pipe(chorus_id, chorus_spliter);
+        net.pipe(delay_id, delay_spliter);
+        net.pipe(reverb_inputs_mixer, reverb_id);
+
+        net.connect(sequencer_id, 0, mixer, 0);
+        net.connect(sequencer_id, 1, mixer, 1);
+
+        net.connect(sequencer_id, 2, reverb_inputs_mixer, 0);
+        net.connect(sequencer_id, 3, reverb_inputs_mixer, 1);
+
+        net.connect(sequencer_id, 4, chorus_id, 0);
+        net.connect(sequencer_id, 5, chorus_id, 1);
+
+        net.connect(chorus_spliter, 0, mixer, 4);
+        net.connect(chorus_spliter, 1, mixer, 5);
+        net.connect(chorus_spliter, 2, reverb_inputs_mixer, 2);
+        net.connect(chorus_spliter, 3, reverb_inputs_mixer, 3);
+
+        net.connect(sequencer_id, 6, delay_id, 0);
+        net.connect(sequencer_id, 7, delay_id, 1);
+
+        net.connect(delay_spliter, 0, mixer, 6);
+        net.connect(delay_spliter, 1, mixer, 7);
+        net.connect(delay_spliter, 2, reverb_inputs_mixer, 4);
+        net.connect(delay_spliter, 3, reverb_inputs_mixer, 5);
+
+        net.connect(reverb_id, 0, mixer, 2);
+        net.connect(reverb_id, 1, mixer, 3);
+
+        net.pipe_output(mixer);
 
         net.set_sample_rate(sample_rate);
 
@@ -171,7 +253,29 @@ impl Tracker {
             instruments: Vec::new(),
             sequencer,
             net,
+            reverb_mix_level,
+            chorus_mix_level,
+            delay_mix_level,
+            chorus_to_reverb_level,
+            delay_to_reverb_level,
+            reverb_room_size,
+            reverb_time,
+            reverb_diffusion,
+            reverb_modulation_speed,
+            reverb_filter_frequency,
+            chorus_separation,
+            chorus_variation,
+            chorus_mod_frequency,
+            delay_time,
+            delay_decay,
+            reverb,
+            chorus,
+            delay,
         };
+
+        tracker.rebuild_reverb();
+        tracker.rebuild_chorus();
+        tracker.rebuild_delay();
 
         let mut rng = Rnd::new();
         tracker
@@ -182,7 +286,54 @@ impl Tracker {
                 60.0,
             )))));
 
+        tracker.tracks[0].mix_level = 1.0;
+
         (tracker, backend)
+    }
+
+    pub fn rebuild_reverb(&mut self) {
+        self.reverb.set(
+            Fade::Smooth,
+            0.1,
+            Box::new(reverb2_stereo(
+                self.reverb_room_size,
+                self.reverb_time,
+                self.reverb_diffusion,
+                self.reverb_modulation_speed,
+                lowpole_hz(self.reverb_filter_frequency),
+            )),
+        );
+    }
+
+    pub fn rebuild_chorus(&mut self) {
+        self.chorus.set(
+            Fade::Smooth,
+            0.1,
+            Box::new(
+                chorus(
+                    0,
+                    self.chorus_separation,
+                    self.chorus_variation,
+                    self.chorus_mod_frequency,
+                ) | chorus(
+                    0,
+                    self.chorus_separation,
+                    self.chorus_variation,
+                    self.chorus_mod_frequency,
+                ),
+            ),
+        );
+    }
+
+    pub fn rebuild_delay(&mut self) {
+        self.delay.set(
+            Fade::Smooth,
+            0.1,
+            Box::new(
+                feedback(delay(self.delay_time) * db_amp(-self.delay_decay))
+                    | feedback(delay(self.delay_time) * db_amp(-self.delay_decay)),
+            ),
+        );
     }
 
     pub fn semi_tone_up(&mut self) {
@@ -195,8 +346,14 @@ impl Tracker {
 
     pub fn play_note(&mut self) {
         if let Some(ref instrument) = self.instruments[0] {
-            self.sequencer
-                .push_relative(0.0, 1.0, Fade::Smooth, 0.0, 0.25, instrument.get_unit());
+            self.sequencer.push_relative(
+                0.0,
+                1.0,
+                Fade::Smooth,
+                0.0,
+                0.25,
+                instrument.get_unit(self.tracks[0].mix_level),
+            );
         }
     }
 }
