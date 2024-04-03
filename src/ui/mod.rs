@@ -1,14 +1,16 @@
+mod mixerview;
+
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     prelude::*,
     widgets::{
         block::{Position, Title},
-        Block, Borders, Paragraph,
+        Block, Borders,
     },
 };
 
-use crate::tracker::Tracker;
+use crate::{tracker::Tracker, ui::mixerview::MixerView};
 
 pub struct Ui {
     pub tracker: Tracker,
@@ -17,10 +19,6 @@ pub struct Ui {
 impl Ui {
     pub fn render_frame(&self, frame: &mut Frame) {
         frame.render_widget(self, frame.size())
-        // let layout = Layout::default()
-        //     .direction(Direction::Horizontal)
-        //     .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
-        //     .split(frame.size());
     }
 
     pub fn handle_events(&mut self) -> Result<bool> {
@@ -75,16 +73,17 @@ impl Widget for &Ui {
             .borders(Borders::ALL)
             .border_set(symbols::border::THICK);
 
-        let counter_text = Text::from(vec![Line::from(vec![
-            "Frequency: ".into(),
-            self.tracker.tone.get_frequency().to_string().yellow(),
-            " Notation: ".into(),
-            self.tracker.tone.get_string().yellow(),
-        ])]);
+        let inner_area = block.inner(area);
+        block.render(area, buf);
+        let layout = Layout::default()
+            .direction(Direction::Horizontal)
+            .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
+            .split(inner_area);
 
-        Paragraph::new(counter_text)
-            .centered()
-            .block(block)
-            .render(area, buf);
+        let mixer = MixerView {
+            tracker: &self.tracker,
+        };
+
+        mixer.render(layout[0], buf);
     }
 }
