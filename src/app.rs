@@ -53,10 +53,7 @@ where
     )?;
     stream.play()?;
 
-    let mut state = State {
-        tracker,
-        exit: false,
-    };
+    let mut state = State::new(tracker);
 
     execute!(stdout(), EnterAlternateScreen)?;
     enable_raw_mode()?;
@@ -64,7 +61,7 @@ where
     while !state.exit {
         terminal.draw(|frame| render(&state, frame))?;
         let mut msgs = vec![Message::Refresh];
-        while msgs.len() > 0 {
+        while !msgs.is_empty() {
             msgs = msgs
                 .into_iter()
                 .flat_map(|msg| update(&mut state, msg).unwrap().into_iter())

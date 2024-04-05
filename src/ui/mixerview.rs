@@ -9,19 +9,11 @@ fn snoop_averager(snoop: &fundsp::hacker::Snoop<f64>, samples_nb: usize) -> f64 
     sum / samples_nb as f64
 }
 
-pub struct Control {
-    area: Rect,
-    label: String,
-}
+pub struct MixerView {}
 
-pub struct MixerView {
-    pub controls: Vec<Control>,
-}
 impl MixerView {
     pub fn new() -> Self {
-        Self {
-            controls: Vec::new(),
-        }
+        Self {}
     }
 
     pub fn render(self, area: Rect, buf: &mut Buffer, tracker: &Tracker) {
@@ -30,17 +22,6 @@ impl MixerView {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        let text = Text::from(vec![Line::from(vec![
-            "Frequency: ".into(),
-            tracker.tone.get_frequency().to_string().yellow(),
-            " Notation: ".into(),
-            tracker.tone.get_string().yellow(),
-        ])]);
-
-        let area = Rect::new(inner.x, inner.y, inner.width, 1);
-        // Paragraph::new(text).centered().render(area, buf);
-
-        let area = Rect::new(inner.x, inner.y + 1, inner.width, 1);
         VerticalSlider::new(
             tracker.tracks[0].mix_level,
             snoop_averager(&tracker.tracks[0].snoop0, 2048),

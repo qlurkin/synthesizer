@@ -19,6 +19,15 @@ pub struct State {
     pub exit: bool,
 }
 
+impl State {
+    pub fn new(tracker: Tracker) -> Self {
+        Self {
+            tracker,
+            exit: false,
+        }
+    }
+}
+
 pub enum Message {
     Refresh,
     Play,

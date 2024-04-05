@@ -9,6 +9,7 @@ pub struct Tone {
     semitone: i32,
 }
 
+#[allow(unused)]
 impl Tone {
     pub fn get_frequency(&self) -> f32 {
         let base_frequency = 440.0; // Fréquence du La 4ème octave
@@ -98,22 +99,22 @@ impl Instrument {
 }
 
 pub struct Step {
-    tone: Tone,
-    instrument: usize,
-    velocity: u8,
+    pub tone: Tone,
+    pub instrument: usize,
+    pub velocity: u8,
 }
 
 pub struct Phrase {
-    steps: Vec<Option<Step>>,
+    pub steps: Vec<Option<Step>>,
 }
 
 pub struct Chain {
-    phrases: Vec<Option<usize>>,
+    pub phrases: Vec<Option<usize>>,
 }
 
 pub struct Track {
-    chains: Vec<Option<usize>>,
-    event_id: Option<EventId>,
+    pub chains: Vec<Option<usize>>,
+    pub event_id: Option<EventId>,
     pub mix_level: f64,
     pub snoop0: Snoop<f64>,
     pub snoop1: Snoop<f64>,
@@ -151,11 +152,10 @@ impl Track {
 pub struct Tracker {
     pub tone: Tone,
     pub tracks: Vec<Track>,
-    chains: Vec<Option<Chain>>,
-    phrases: Vec<Option<Phrase>>,
-    instruments: Vec<Option<Instrument>>,
-    sequencer: Sequencer64,
-    net: Net64,
+    pub chains: Vec<Option<Chain>>,
+    pub phrases: Vec<Option<Phrase>>,
+    pub instruments: Vec<Option<Instrument>>,
+    pub sequencer: Sequencer64,
     pub reverb_mix_level: Shared<f64>,
     pub chorus_mix_level: Shared<f64>,
     pub delay_mix_level: Shared<f64>,
@@ -286,7 +286,6 @@ impl Tracker {
             chains: std::iter::repeat_with(|| None).take(256).collect(),
             instruments: Vec::new(),
             sequencer,
-            net,
             reverb_mix_level,
             chorus_mix_level,
             delay_mix_level,
@@ -376,11 +375,11 @@ impl Tracker {
         );
     }
 
-    pub fn semi_tone_up(&mut self) {
+    pub fn _semi_tone_up(&mut self) {
         self.tone = self.tone.up(1);
     }
 
-    pub fn semi_tone_down(&mut self) {
+    pub fn _semi_tone_down(&mut self) {
         self.tone = self.tone.down(1);
     }
 
