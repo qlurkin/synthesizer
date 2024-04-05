@@ -1,4 +1,7 @@
-use crate::{tracker::Tracker, ui::Ui};
+use crate::{
+    tracker::Tracker,
+    ui::{render, update, Message, State},
+};
 use anyhow::Result;
 use cpal::{
     traits::{DeviceTrait, StreamTrait},
@@ -50,16 +53,23 @@ where
     )?;
     stream.play()?;
 
-    let mut ui = Ui { tracker };
+    let mut state = State {
+        tracker,
+        exit: false,
+    };
 
     execute!(stdout(), EnterAlternateScreen)?;
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-    let mut exit = false;
-    while !exit {
-        // terminal.draw(|frame| self.render_frame(frame))?;
-        terminal.draw(|frame| ui.render_frame(frame))?;
-        exit = ui.handle_events()?;
+    while !state.exit {
+        terminal.draw(|frame| render(&state, frame))?;
+        let mut msgs = vec![Message::Refresh];
+        while msgs.len() > 0 {
+            msgs = msgs
+                .into_iter()
+                .flat_map(|msg| update(&mut state, msg).unwrap().into_iter())
+                .collect();
+        }
     }
     execute!(stdout(), LeaveAlternateScreen)?;
     disable_raw_mode()?;

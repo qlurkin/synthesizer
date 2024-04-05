@@ -82,13 +82,13 @@ impl Instrument {
         }
     }
 
-    pub fn get_unit(&self, track_mix_level: f64) -> Box<dyn AudioUnit64> {
+    pub fn get_unit(&self) -> Box<dyn AudioUnit64> {
         let net = Net64::wrap(self.unit.clone());
         let net = net >> pan(self.pan);
 
         let net = net
             >> multisplit::<U2, U4>()
-            >> ((track_mix_level * self.dry_level * multipass::<U2>())
+            >> ((self.dry_level * multipass::<U2>())
                 | (self.reverb_level * multipass::<U2>())
                 | (self.chorus_level * multipass::<U2>())
                 | (self.delay_level * multipass::<U2>()));
@@ -115,31 +115,52 @@ pub struct Track {
     chains: Vec<Option<usize>>,
     event_id: Option<EventId>,
     pub mix_level: f64,
+    pub snoop0: Snoop<f64>,
+    pub snoop1: Snoop<f64>,
 }
 
 impl Track {
     fn new() -> Self {
+        let (snoop0, _) = snoop(2048);
+        let (snoop1, _) = snoop(2048);
+
         Self {
             chains: std::iter::repeat_with(|| None).take(256).collect(),
             event_id: None,
             mix_level: 1.0,
+            snoop0,
+            snoop1,
         }
+    }
+
+    pub fn get_unit(&mut self, instrument: &Instrument) -> Box<dyn AudioUnit64> {
+        let (snoop0, snoop0_backend) = snoop(32768);
+        let (snoop1, snoop1_backend) = snoop(32768);
+
+        self.snoop0 = snoop0;
+        self.snoop1 = snoop1;
+
+        let mut net = Net64::wrap(instrument.get_unit());
+        net = net
+            >> (((multipass::<U2>() * self.mix_level) >> (snoop0_backend | snoop1_backend))
+                | multipass::<U6>());
+        Box::new(net)
     }
 }
 
 pub struct Tracker {
     pub tone: Tone,
-    tracks: Vec<Track>,
+    pub tracks: Vec<Track>,
     chains: Vec<Option<Chain>>,
     phrases: Vec<Option<Phrase>>,
     instruments: Vec<Option<Instrument>>,
     sequencer: Sequencer64,
     net: Net64,
-    reverb_mix_level: Shared<f64>,
-    chorus_mix_level: Shared<f64>,
-    delay_mix_level: Shared<f64>,
-    chorus_to_reverb_level: Shared<f64>,
-    delay_to_reverb_level: Shared<f64>,
+    pub reverb_mix_level: Shared<f64>,
+    pub chorus_mix_level: Shared<f64>,
+    pub delay_mix_level: Shared<f64>,
+    pub chorus_to_reverb_level: Shared<f64>,
+    pub delay_to_reverb_level: Shared<f64>,
     reverb_room_size: f64,
     reverb_time: f64,
     reverb_diffusion: f64,
@@ -148,6 +169,12 @@ pub struct Tracker {
     chorus_separation: f64,
     chorus_variation: f64,
     chorus_mod_frequency: f64,
+    pub snoop_reverb0: Snoop<f64>,
+    pub snoop_reverb1: Snoop<f64>,
+    pub snoop_chorus0: Snoop<f64>,
+    pub snoop_chorus1: Snoop<f64>,
+    pub snoop_delay0: Snoop<f64>,
+    pub snoop_delay1: Snoop<f64>,
     delay_time: f64,
     delay_decay: f64,
     reverb: Slot64,
@@ -179,6 +206,13 @@ impl Tracker {
         let (chorus, chorus_backend) = Slot64::new(Box::new(multipass::<U2>()));
         let (delay, delay_backend) = Slot64::new(Box::new(multipass::<U2>()));
 
+        let (snoop_reverb0, snoop_reverb0_backend) = snoop(2048);
+        let (snoop_reverb1, snoop_reverb1_backend) = snoop(2048);
+        let (snoop_chorus0, snoop_chorus0_backend) = snoop(2048);
+        let (snoop_chorus1, snoop_chorus1_backend) = snoop(2048);
+        let (snoop_delay0, snoop_delay0_backend) = snoop(2048);
+        let (snoop_delay1, snoop_delay1_backend) = snoop(2048);
+
         let mut net = Net64::new(0, 2);
 
         let sequencer_id = net.push(Box::new(sequencer_backend));
@@ -188,12 +222,12 @@ impl Tracker {
 
         let mixer = net.push(Box::new(
             multipass::<U2>()
-                + ((multipass::<U1>() * var(&reverb_mix_level))
-                    | (multipass::<U1>() * var(&reverb_mix_level)))
-                + ((multipass::<U1>() * var(&chorus_mix_level))
-                    | (multipass::<U1>() * var(&chorus_mix_level)))
-                + ((multipass::<U1>() * var(&delay_mix_level))
-                    | (multipass::<U1>() * var(&delay_mix_level))),
+                + (((multipass::<U1>() * var(&reverb_mix_level)) >> snoop_reverb0_backend)
+                    | ((multipass::<U1>() * var(&reverb_mix_level)) >> snoop_reverb1_backend))
+                + (((multipass::<U1>() * var(&chorus_mix_level)) >> snoop_chorus0_backend)
+                    | ((multipass::<U1>() * var(&chorus_mix_level)) >> snoop_chorus1_backend))
+                + (((multipass::<U1>() * var(&delay_mix_level)) >> snoop_delay0_backend)
+                    | ((multipass::<U1>() * var(&delay_mix_level)) >> snoop_delay1_backend)),
         ));
 
         let reverb_inputs_mixer = net.push(Box::new(
@@ -271,6 +305,12 @@ impl Tracker {
             reverb,
             chorus,
             delay,
+            snoop_delay0,
+            snoop_delay1,
+            snoop_reverb0,
+            snoop_reverb1,
+            snoop_chorus0,
+            snoop_chorus1,
         };
 
         tracker.rebuild_reverb();
@@ -352,7 +392,7 @@ impl Tracker {
                 Fade::Smooth,
                 0.0,
                 0.25,
-                instrument.get_unit(self.tracks[0].mix_level),
+                self.tracks[0].get_unit(instrument),
             );
         }
     }
