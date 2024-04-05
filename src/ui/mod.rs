@@ -12,11 +12,14 @@ use ratatui::{
     },
 };
 
-use crate::{tracker::Tracker, ui::mixerview::MixerView};
+use crate::{tracker::Tracker, ui::mixerview::MixerState};
+
+use self::mixerview::render_mixer;
 
 pub struct State {
     pub tracker: Tracker,
     pub exit: bool,
+    pub mixer_state: MixerState,
 }
 
 impl State {
@@ -24,6 +27,7 @@ impl State {
         Self {
             tracker,
             exit: false,
+            mixer_state: MixerState::default(),
         }
     }
 }
@@ -112,7 +116,5 @@ fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
         .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
         .split(inner_area);
 
-    let mixer = MixerView::new();
-
-    mixer.render(layout[0], buf, &state.tracker);
+    render_mixer(layout[0], buf, state);
 }

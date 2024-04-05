@@ -1,70 +1,67 @@
-use crate::tracker::Tracker;
 use ratatui::{
     prelude::*,
     widgets::{block::Title, Block},
 };
+
+use super::State;
 
 fn snoop_averager(snoop: &fundsp::hacker::Snoop<f64>, samples_nb: usize) -> f64 {
     let sum: f64 = (0..samples_nb).map(|i| snoop.at(i).abs()).sum();
     sum / samples_nb as f64
 }
 
-pub struct MixerView {}
+#[derive(Default)]
+pub struct MixerState {}
 
-impl MixerView {
-    pub fn new() -> Self {
-        Self {}
-    }
+pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
+    let title = Title::from(" Mixer ".bold());
+    let block = Block::default().title(title.alignment(Alignment::Center));
+    let inner = block.inner(area);
+    block.render(area, buf);
+    let tracker = &state.tracker;
 
-    pub fn render(self, area: Rect, buf: &mut Buffer, tracker: &Tracker) {
-        let title = Title::from(" Mixer ".bold());
-        let block = Block::default().title(title.alignment(Alignment::Center));
-        let inner = block.inner(area);
-        block.render(area, buf);
-
-        VerticalSlider::new(
-            tracker.tracks[0].mix_level,
-            snoop_averager(&tracker.tracks[0].snoop0, 2048),
-            snoop_averager(&tracker.tracks[0].snoop1, 2048),
-            "T1".into(),
-        )
-        .render(Rect::new(inner.x + 1, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(tracker.tracks[1].mix_level, 0.0, 0.0, "T2".into())
-            .render(Rect::new(inner.x + 4, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(tracker.tracks[2].mix_level, 0.0, 0.0, "T3".into())
-            .render(Rect::new(inner.x + 7, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(tracker.tracks[3].mix_level, 0.0, 0.0, "T4".into())
-            .render(Rect::new(inner.x + 10, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(tracker.tracks[4].mix_level, 0.0, 0.0, "T5".into())
-            .render(Rect::new(inner.x + 13, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(tracker.tracks[5].mix_level, 0.0, 0.0, "T6".into())
-            .render(Rect::new(inner.x + 16, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(tracker.tracks[6].mix_level, 0.0, 0.0, "T7".into())
-            .render(Rect::new(inner.x + 19, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(tracker.tracks[7].mix_level, 0.0, 0.0, "T8".into())
-            .render(Rect::new(inner.x + 22, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(
-            tracker.chorus_mix_level.value(),
-            snoop_averager(&tracker.snoop_chorus0, 2048),
-            snoop_averager(&tracker.snoop_chorus1, 2048),
-            "CH".into(),
-        )
-        .render(Rect::new(inner.x + 25, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(
-            tracker.delay_mix_level.value(),
-            snoop_averager(&tracker.snoop_delay0, 2048),
-            snoop_averager(&tracker.snoop_delay1, 2048),
-            "DE".into(),
-        )
-        .render(Rect::new(inner.x + 28, inner.y + 2, 3, 8), buf);
-        VerticalSlider::new(
-            tracker.reverb_mix_level.value(),
-            snoop_averager(&tracker.snoop_reverb0, 2048),
-            snoop_averager(&tracker.snoop_reverb1, 2048),
-            "RE".into(),
-        )
-        .render(Rect::new(inner.x + 31, inner.y + 2, 3, 8), buf);
-    }
+    VerticalSlider::new(
+        tracker.tracks[0].mix_level,
+        snoop_averager(&tracker.tracks[0].snoop0, 2048),
+        snoop_averager(&tracker.tracks[0].snoop1, 2048),
+        "T1".into(),
+    )
+    .render(Rect::new(inner.x + 1, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(tracker.tracks[1].mix_level, 0.0, 0.0, "T2".into())
+        .render(Rect::new(inner.x + 4, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(tracker.tracks[2].mix_level, 0.0, 0.0, "T3".into())
+        .render(Rect::new(inner.x + 7, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(tracker.tracks[3].mix_level, 0.0, 0.0, "T4".into())
+        .render(Rect::new(inner.x + 10, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(tracker.tracks[4].mix_level, 0.0, 0.0, "T5".into())
+        .render(Rect::new(inner.x + 13, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(tracker.tracks[5].mix_level, 0.0, 0.0, "T6".into())
+        .render(Rect::new(inner.x + 16, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(tracker.tracks[6].mix_level, 0.0, 0.0, "T7".into())
+        .render(Rect::new(inner.x + 19, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(tracker.tracks[7].mix_level, 0.0, 0.0, "T8".into())
+        .render(Rect::new(inner.x + 22, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(
+        tracker.chorus_mix_level.value(),
+        snoop_averager(&tracker.snoop_chorus0, 2048),
+        snoop_averager(&tracker.snoop_chorus1, 2048),
+        "CH".into(),
+    )
+    .render(Rect::new(inner.x + 25, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(
+        tracker.delay_mix_level.value(),
+        snoop_averager(&tracker.snoop_delay0, 2048),
+        snoop_averager(&tracker.snoop_delay1, 2048),
+        "DE".into(),
+    )
+    .render(Rect::new(inner.x + 28, inner.y + 2, 3, 8), buf);
+    VerticalSlider::new(
+        tracker.reverb_mix_level.value(),
+        snoop_averager(&tracker.snoop_reverb0, 2048),
+        snoop_averager(&tracker.snoop_reverb1, 2048),
+        "RE".into(),
+    )
+    .render(Rect::new(inner.x + 31, inner.y + 2, 3, 8), buf);
 }
 
 struct VerticalSlider {
