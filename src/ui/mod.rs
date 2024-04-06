@@ -14,7 +14,7 @@ use ratatui::{
 
 use crate::{tracker::Tracker, ui::mixerview::MixerState};
 
-use self::mixerview::render_mixer;
+use self::mixerview::{render_mixer, update_mixer, MixerMessage};
 
 pub struct State {
     pub tracker: Tracker,
@@ -36,6 +36,11 @@ pub enum Message {
     Refresh,
     Play,
     Quit,
+    MixerMessage(MixerMessage),
+    Up,
+    Down,
+    Left,
+    Right,
 }
 
 pub fn render(state: &State, frame: &mut Frame) {
@@ -45,8 +50,10 @@ pub fn render(state: &State, frame: &mut Frame) {
 pub fn update(state: &mut State, msg: Message) -> Result<Vec<Message>> {
     match msg {
         Message::Refresh => {
-            state.tracker.tracks[0].snoop0.update();
-            state.tracker.tracks[0].snoop1.update();
+            for i in 0..8 {
+                state.tracker.tracks[i].snoop0.update();
+                state.tracker.tracks[i].snoop1.update();
+            }
             state.tracker.snoop_chorus0.update();
             state.tracker.snoop_chorus1.update();
             state.tracker.snoop_delay0.update();
@@ -54,7 +61,7 @@ pub fn update(state: &mut State, msg: Message) -> Result<Vec<Message>> {
             state.tracker.snoop_reverb0.update();
             state.tracker.snoop_reverb1.update();
 
-            handle_events()
+            handle_events(state)
         }
         Message::Play => {
             state.tracker.play_note();
@@ -64,17 +71,22 @@ pub fn update(state: &mut State, msg: Message) -> Result<Vec<Message>> {
             state.exit = true;
             Ok(Vec::new())
         }
+        Message::MixerMessage(mixer_message) => update_mixer(state, mixer_message),
+        Message::Up => Ok(vec![Message::MixerMessage(MixerMessage::Up)]),
+        Message::Down => Ok(vec![Message::MixerMessage(MixerMessage::Down)]),
+        Message::Left => Ok(vec![Message::MixerMessage(MixerMessage::Left)]),
+        Message::Right => Ok(vec![Message::MixerMessage(MixerMessage::Right)]),
     }
 }
 
-pub fn handle_events() -> Result<Vec<Message>> {
+pub fn handle_events(state: &State) -> Result<Vec<Message>> {
     let timeout = Duration::from_secs_f32(1.0 / 60.0);
     if event::poll(timeout)? {
         Ok(match event::read()? {
             // it's important to check that the event is a key press event as
             // crossterm also emits key release and repeat events on Windows.
             Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                handle_key_event(key_event)
+                handle_key_event(key_event, state)
             }
             _ => vec![],
         })
@@ -83,10 +95,14 @@ pub fn handle_events() -> Result<Vec<Message>> {
     }
 }
 
-fn handle_key_event(key_event: KeyEvent) -> Vec<Message> {
+fn handle_key_event(key_event: KeyEvent, state: &State) -> Vec<Message> {
     match key_event.code {
         KeyCode::Char('q') => vec![Message::Quit],
         KeyCode::Char(' ') => vec![Message::Play],
+        KeyCode::Up => vec![Message::Up],
+        KeyCode::Down => vec![Message::Down],
+        KeyCode::Left => vec![Message::Left],
+        KeyCode::Right => vec![Message::Right],
         _ => vec![],
     }
 }
