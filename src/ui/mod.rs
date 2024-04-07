@@ -8,7 +8,7 @@ use ratatui::{
     prelude::*,
     widgets::{
         block::{Position, Title},
-        Block, Borders,
+        Axis, Block, Borders, Chart, Dataset, GraphType,
     },
 };
 
@@ -60,8 +60,10 @@ pub fn update(state: &mut State, msg: Message) -> Result<Vec<Message>> {
             state.tracker.snoop_delay1.update();
             state.tracker.snoop_reverb0.update();
             state.tracker.snoop_reverb1.update();
+            state.tracker.snoop_out0.update();
+            state.tracker.snoop_out1.update();
 
-            handle_events(state)
+            handle_events()
         }
         Message::Play => {
             state.tracker.play_note();
@@ -79,14 +81,14 @@ pub fn update(state: &mut State, msg: Message) -> Result<Vec<Message>> {
     }
 }
 
-pub fn handle_events(state: &State) -> Result<Vec<Message>> {
+pub fn handle_events() -> Result<Vec<Message>> {
     let timeout = Duration::from_secs_f32(1.0 / 60.0);
     if event::poll(timeout)? {
         Ok(match event::read()? {
             // it's important to check that the event is a key press event as
             // crossterm also emits key release and repeat events on Windows.
             Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                handle_key_event(key_event, state)
+                handle_key_event(key_event)
             }
             _ => vec![],
         })
@@ -95,7 +97,7 @@ pub fn handle_events(state: &State) -> Result<Vec<Message>> {
     }
 }
 
-fn handle_key_event(key_event: KeyEvent, state: &State) -> Vec<Message> {
+fn handle_key_event(key_event: KeyEvent) -> Vec<Message> {
     match key_event.code {
         KeyCode::Char('q') => vec![Message::Quit],
         KeyCode::Char(' ') => vec![Message::Play],
@@ -127,10 +129,47 @@ fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
 
     let inner_area = block.inner(area);
     block.render(area, buf);
-    let layout = Layout::default()
-        .direction(Direction::Horizontal)
-        .constraints(vec![Constraint::Percentage(80), Constraint::Percentage(20)])
-        .split(inner_area);
 
-    render_mixer(layout[0], buf, state);
+    let graph_area = Rect::new(inner_area.x, inner_area.y, inner_area.width, 10);
+
+    let points = 2048;
+    let points0: Vec<(f64, f64)> = (0..points)
+        .map(|i| {
+            let y = state.tracker.snoop_out0.at(i);
+            ((points - i) as f64, y)
+        })
+        .collect();
+
+    let datasets = vec![Dataset::default()
+        .marker(symbols::Marker::Braille)
+        .graph_type(GraphType::Line)
+        .style(Style::default().magenta())
+        .data(points0.as_slice())];
+
+    // Create the X axis and define its properties
+    let x_axis = Axis::default()
+        // .title("X Axis".red())
+        // .style(Style::default().white())
+        .bounds([0.0, 2048.0]);
+    // .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+
+    // Create the Y axis and define its properties
+    let y_axis = Axis::default()
+        // .title("Y Axis".red())
+        // .style(Style::default().white())
+        .bounds([-1.0, 1.0]);
+    // .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+
+    // Create the chart and link all the parts together
+    Chart::new(datasets)
+        // .block(Block::default().title("Chart"))
+        .x_axis(x_axis)
+        .y_axis(y_axis)
+        .render(graph_area, buf);
+
+    render_mixer(
+        Rect::new(inner_area.x, inner_area.y + 10, 36, 20),
+        buf,
+        state,
+    );
 }

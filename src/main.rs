@@ -1,6 +1,7 @@
 use cpal::traits::{DeviceTrait, HostTrait};
 
 mod app;
+mod math;
 mod tracker;
 mod ui;
 
