@@ -135,8 +135,8 @@ impl Track {
     }
 
     pub fn get_unit(&mut self, instrument: &Instrument) -> Box<dyn AudioUnit64> {
-        let (snoop0, snoop0_backend) = snoop(32768);
-        let (snoop1, snoop1_backend) = snoop(32768);
+        let (snoop0, snoop0_backend) = snoop(2048);
+        let (snoop1, snoop1_backend) = snoop(2048);
 
         self.snoop0 = snoop0;
         self.snoop1 = snoop1;
