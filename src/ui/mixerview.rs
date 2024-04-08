@@ -138,10 +138,7 @@ pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
             format!("T{}", i),
             is(state, MixerControl::Track(i)),
         )
-        .render(
-            Rect::new(inner.x + 1 + i as u16 * 3, inner.y + 1, 2, 6),
-            buf,
-        );
+        .render(Rect::new(inner.x + 1 + i as u16 * 3, inner.y, 2, 6), buf);
     }
     MixControl::new(
         tracker.chorus_mix_level.value(),
@@ -150,7 +147,7 @@ pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
         "CH".into(),
         is(state, MixerControl::Chorus),
     )
-    .render(Rect::new(inner.x + 1, inner.y + 8, 2, 6), buf);
+    .render(Rect::new(inner.x + 25, inner.y, 2, 6), buf);
     MixControl::new(
         tracker.delay_mix_level.value(),
         snoop_averager(&tracker.snoop_delay0, 2048),
@@ -158,7 +155,7 @@ pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
         "DE".into(),
         is(state, MixerControl::Delay),
     )
-    .render(Rect::new(inner.x + 4, inner.y + 8, 2, 6), buf);
+    .render(Rect::new(inner.x + 28, inner.y, 2, 6), buf);
     MixControl::new(
         tracker.reverb_mix_level.value(),
         snoop_averager(&tracker.snoop_reverb0, 2048),
@@ -166,7 +163,7 @@ pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
         "RE".into(),
         is(state, MixerControl::Reverb),
     )
-    .render(Rect::new(inner.x + 7, inner.y + 8, 2, 6), buf);
+    .render(Rect::new(inner.x + 31, inner.y, 2, 6), buf);
 }
 
 struct MixControl {

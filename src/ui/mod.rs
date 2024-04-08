@@ -146,29 +146,17 @@ fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
         .style(Style::default().magenta())
         .data(points0.as_slice())];
 
-    // Create the X axis and define its properties
-    let x_axis = Axis::default()
-        // .title("X Axis".red())
-        // .style(Style::default().white())
-        .bounds([0.0, 2048.0]);
-    // .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+    let x_axis = Axis::default().bounds([0.0, 2048.0]);
 
-    // Create the Y axis and define its properties
-    let y_axis = Axis::default()
-        // .title("Y Axis".red())
-        // .style(Style::default().white())
-        .bounds([-1.0, 1.0]);
-    // .labels(vec!["0.0".into(), "5.0".into(), "10.0".into()]);
+    let y_axis = Axis::default().bounds([-1.0, 1.0]);
 
-    // Create the chart and link all the parts together
     Chart::new(datasets)
-        // .block(Block::default().title("Chart"))
         .x_axis(x_axis)
         .y_axis(y_axis)
         .render(graph_area, buf);
 
     render_mixer(
-        Rect::new(inner_area.x, inner_area.y + 10, 36, 20),
+        Rect::new(inner_area.x, inner_area.y + 10, 36, 8),
         buf,
         state,
     );
