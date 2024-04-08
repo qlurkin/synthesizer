@@ -1,4 +1,5 @@
-mod mixerview;
+mod effects_view;
+mod mixer_view;
 
 use std::time::Duration;
 
@@ -12,14 +13,18 @@ use ratatui::{
     },
 };
 
-use crate::{tracker::Tracker, ui::mixerview::MixerState};
+use crate::{tracker::Tracker, ui::mixer_view::MixerState};
 
-use self::mixerview::{render_mixer, update_mixer, MixerMessage};
+use self::{
+    effects_view::{render_effect, EffectState},
+    mixer_view::{render_mixer, update_mixer, MixerMessage},
+};
 
 pub struct State {
     pub tracker: Tracker,
     pub exit: bool,
     pub mixer_state: MixerState,
+    pub effect_state: EffectState,
 }
 
 impl State {
@@ -28,6 +33,7 @@ impl State {
             tracker,
             exit: false,
             mixer_state: MixerState::default(),
+            effect_state: EffectState::default(),
         }
     }
 }
@@ -157,6 +163,11 @@ fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
 
     render_mixer(
         Rect::new(inner_area.x, inner_area.y + 10, 36, 8),
+        buf,
+        state,
+    );
+    render_effect(
+        Rect::new(inner_area.x + 36, inner_area.y + 10, 36, 8),
         buf,
         state,
     );

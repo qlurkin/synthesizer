@@ -1,14 +1,23 @@
+use fundsp::math::amp_db;
 use ratatui::{
     prelude::*,
     widgets::{block::Title, Block, Borders},
 };
 
+use crate::math::{db_hex, inc_hex_db_amp};
+
 use super::{Message, State};
 use anyhow::Result;
 
-fn snoop_averager(snoop: &fundsp::hacker::Snoop<f64>, samples_nb: usize) -> f64 {
-    let sum: f64 = (0..samples_nb).map(|i| snoop.at(i).abs()).sum();
-    sum / samples_nb as f64
+fn snoop_maxer(snoop: &fundsp::hacker::Snoop<f64>, samples_nb: usize) -> f64 {
+    if let Some(max) = (0..samples_nb)
+        .map(|i| snoop.at(i).abs())
+        .max_by(|a, b| a.total_cmp(b))
+    {
+        max
+    } else {
+        0.0
+    }
 }
 
 #[derive(PartialEq, Clone)]
@@ -20,7 +29,7 @@ pub enum MixerControl {
 }
 
 pub enum MixerMessage {
-    Inc(MixerControl, f64),
+    Inc(MixerControl, i16),
     Up,
     Down,
     Left,
@@ -47,11 +56,11 @@ pub fn update_mixer(state: &mut State, msg: MixerMessage) -> Result<Vec<Message>
     match msg {
         MixerMessage::Up => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
             state.mixer_state.focused.clone(),
-            0.1,
+            1,
         ))]),
         MixerMessage::Down => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
             state.mixer_state.focused.clone(),
-            -0.1,
+            -1,
         ))]),
         MixerMessage::Left => {
             match state.mixer_state.focused {
@@ -94,25 +103,26 @@ pub fn update_mixer(state: &mut State, msg: MixerMessage) -> Result<Vec<Message>
         MixerMessage::Inc(control, value) => {
             match control {
                 MixerControl::Track(i) => {
-                    state.tracker.tracks[i].mix_level += value;
+                    state.tracker.tracks[i].mix_level =
+                        inc_hex_db_amp(state.tracker.tracks[i].mix_level, value);
                 }
                 MixerControl::Chorus => {
-                    state
-                        .tracker
-                        .chorus_mix_level
-                        .set(state.tracker.chorus_mix_level.value() + value);
+                    state.tracker.chorus_mix_level.set(inc_hex_db_amp(
+                        state.tracker.chorus_mix_level.value(),
+                        value,
+                    ));
                 }
                 MixerControl::Delay => {
                     state
                         .tracker
                         .delay_mix_level
-                        .set(state.tracker.delay_mix_level.value() + value);
+                        .set(inc_hex_db_amp(state.tracker.delay_mix_level.value(), value));
                 }
                 MixerControl::Reverb => {
-                    state
-                        .tracker
-                        .reverb_mix_level
-                        .set(state.tracker.reverb_mix_level.value() + value);
+                    state.tracker.reverb_mix_level.set(inc_hex_db_amp(
+                        state.tracker.reverb_mix_level.value(),
+                        value,
+                    ));
                 }
             }
             Ok(vec![])
@@ -133,8 +143,8 @@ pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
     for i in 0..8 {
         MixControl::new(
             tracker.tracks[i].mix_level,
-            snoop_averager(&tracker.tracks[i].snoop0, 2048),
-            snoop_averager(&tracker.tracks[i].snoop1, 2048),
+            snoop_maxer(&tracker.tracks[i].snoop0, 2048),
+            snoop_maxer(&tracker.tracks[i].snoop1, 2048),
             format!("T{}", i),
             is(state, MixerControl::Track(i)),
         )
@@ -142,24 +152,24 @@ pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
     }
     MixControl::new(
         tracker.chorus_mix_level.value(),
-        snoop_averager(&tracker.snoop_chorus0, 2048),
-        snoop_averager(&tracker.snoop_chorus1, 2048),
+        snoop_maxer(&tracker.snoop_chorus0, 2048),
+        snoop_maxer(&tracker.snoop_chorus1, 2048),
         "CH".into(),
         is(state, MixerControl::Chorus),
     )
     .render(Rect::new(inner.x + 25, inner.y, 2, 6), buf);
     MixControl::new(
         tracker.delay_mix_level.value(),
-        snoop_averager(&tracker.snoop_delay0, 2048),
-        snoop_averager(&tracker.snoop_delay1, 2048),
+        snoop_maxer(&tracker.snoop_delay0, 2048),
+        snoop_maxer(&tracker.snoop_delay1, 2048),
         "DE".into(),
         is(state, MixerControl::Delay),
     )
     .render(Rect::new(inner.x + 28, inner.y, 2, 6), buf);
     MixControl::new(
         tracker.reverb_mix_level.value(),
-        snoop_averager(&tracker.snoop_reverb0, 2048),
-        snoop_averager(&tracker.snoop_reverb1, 2048),
+        snoop_maxer(&tracker.snoop_reverb0, 2048),
+        snoop_maxer(&tracker.snoop_reverb1, 2048),
         "RE".into(),
         is(state, MixerControl::Reverb),
     )
@@ -194,7 +204,7 @@ impl Widget for MixControl {
         Meter::new(self.meter0).render(Rect::new(area.x, area.y, 1, area.height - 2), buf);
         Meter::new(self.meter1).render(Rect::new(area.x + 1, area.y, 1, area.height - 2), buf);
 
-        let value = (255_f64 * self.gain).round() as u16;
+        let value = db_hex(amp_db(self.gain));
 
         let mut line = Line::raw(format!("{:02x}", value).to_uppercase());
         if self.focused {

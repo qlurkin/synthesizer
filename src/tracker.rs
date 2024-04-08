@@ -76,9 +76,9 @@ impl Instrument {
         Self {
             unit,
             dry_level: 1.0,
-            reverb_level: 0.2,
+            reverb_level: 1.0,
             chorus_level: 1.0,
-            delay_level: 0.2,
+            delay_level: 1.0,
             pan: 0.0,
         }
     }
@@ -189,8 +189,8 @@ impl Tracker {
         let mut sequencer = Sequencer64::new(false, 8);
         let sequencer_backend = sequencer.backend();
         let reverb_mix_level = shared(1.0);
-        let chorus_mix_level = shared(0.0);
-        let delay_mix_level = shared(0.0);
+        let chorus_mix_level = shared(1.0);
+        let delay_mix_level = shared(1.0);
         let chorus_to_reverb_level = shared(0.0);
         let delay_to_reverb_level = shared(1.0);
         let reverb_room_size = 10.0;
@@ -331,8 +331,6 @@ impl Tracker {
                 180.0,
                 60.0,
             )))));
-
-        tracker.tracks[0].mix_level = 1.0;
 
         (tracker, backend)
     }
