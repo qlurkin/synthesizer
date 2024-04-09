@@ -1,10 +1,10 @@
 mod effects_view;
 mod mixer_view;
 
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, ModifierKeyCode};
 use ratatui::{
     prelude::*,
     widgets::{
@@ -20,11 +20,24 @@ use self::{
     mixer_view::{render_mixer, update_mixer, MixerMessage},
 };
 
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
+pub enum Key {
+    Up,
+    Down,
+    Left,
+    Right,
+    Option,
+    Edit,
+    Play,
+    Quit,
+}
+
 pub struct State {
     pub tracker: Tracker,
     pub exit: bool,
     pub mixer_state: MixerState,
     pub effect_state: EffectState,
+    pub keyboard: HashMap<Key, bool>,
 }
 
 impl State {
@@ -34,11 +47,14 @@ impl State {
             exit: false,
             mixer_state: MixerState::default(),
             effect_state: EffectState::default(),
+            keyboard: HashMap::new(),
         }
     }
 }
 
 pub enum Message {
+    Press(Key),
+    Release(Key),
     Refresh,
     Play,
     Quit,
@@ -47,6 +63,10 @@ pub enum Message {
     Down,
     Left,
     Right,
+    EditUp,
+    EditDown,
+    EditLeft,
+    EditRight,
 }
 
 pub fn render(state: &State, frame: &mut Frame) {
@@ -79,11 +99,53 @@ pub fn update(state: &mut State, msg: Message) -> Result<Vec<Message>> {
             state.exit = true;
             Ok(Vec::new())
         }
-        Message::MixerMessage(mixer_message) => update_mixer(state, mixer_message),
-        Message::Up => Ok(vec![Message::MixerMessage(MixerMessage::Up)]),
-        Message::Down => Ok(vec![Message::MixerMessage(MixerMessage::Down)]),
-        Message::Left => Ok(vec![Message::MixerMessage(MixerMessage::Left)]),
-        Message::Right => Ok(vec![Message::MixerMessage(MixerMessage::Right)]),
+        Message::Press(key) => {
+            let key_state = state.keyboard.entry(key).or_insert(false);
+            if !*key_state {
+                *key_state = true;
+
+                match key {
+                    _ => Ok(vec![]),
+                }
+            } else {
+                Ok(vec![])
+            }
+        }
+        Message::Release(key) => {
+            state.keyboard.insert(key, false);
+
+            if let Some(down) = state.keyboard.get(&Key::Edit) {
+                if *down {
+                    return match key {
+                        Key::Up => Ok(vec![Message::EditUp]),
+                        Key::Down => Ok(vec![Message::EditDown]),
+                        Key::Left => Ok(vec![Message::EditLeft]),
+                        Key::Right => Ok(vec![Message::EditRight]),
+                        _ => Ok(vec![]),
+                    };
+                }
+            }
+
+            match key {
+                Key::Quit => Ok(vec![Message::Quit]),
+                Key::Up => Ok(vec![Message::Up]),
+                Key::Down => Ok(vec![Message::Down]),
+                Key::Left => Ok(vec![Message::Left]),
+                Key::Right => Ok(vec![Message::Right]),
+                Key::Play => Ok(vec![Message::Play]),
+                _ => Ok(vec![]),
+            }
+        }
+        Message::MixerMessage(_) => update_mixer(state, msg),
+        Message::Up => update_mixer(state, msg),
+        Message::Down => update_mixer(state, msg),
+        Message::Left => update_mixer(state, msg),
+        Message::Right => update_mixer(state, msg),
+        Message::EditUp => update_mixer(state, msg),
+        Message::EditDown => update_mixer(state, msg),
+        Message::EditLeft => update_mixer(state, msg),
+        Message::EditRight => update_mixer(state, msg),
+        // _ => Ok(vec![]),
     }
 }
 
@@ -91,11 +153,7 @@ pub fn handle_events() -> Result<Vec<Message>> {
     let timeout = Duration::from_secs_f32(1.0 / 60.0);
     if event::poll(timeout)? {
         Ok(match event::read()? {
-            // it's important to check that the event is a key press event as
-            // crossterm also emits key release and repeat events on Windows.
-            Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                handle_key_event(key_event)
-            }
+            Event::Key(key_event) => handle_key_event(key_event),
             _ => vec![],
         })
     } else {
@@ -104,19 +162,38 @@ pub fn handle_events() -> Result<Vec<Message>> {
 }
 
 fn handle_key_event(key_event: KeyEvent) -> Vec<Message> {
-    match key_event.code {
-        KeyCode::Char('q') => vec![Message::Quit],
-        KeyCode::Char(' ') => vec![Message::Play],
-        KeyCode::Up => vec![Message::Up],
-        KeyCode::Down => vec![Message::Down],
-        KeyCode::Left => vec![Message::Left],
-        KeyCode::Right => vec![Message::Right],
+    let key = match key_event.code {
+        KeyCode::Char(' ') => Some(Key::Play),
+        KeyCode::Up => Some(Key::Up),
+        KeyCode::Down => Some(Key::Down),
+        KeyCode::Left => Some(Key::Left),
+        KeyCode::Right => Some(Key::Right),
+        KeyCode::Char('q') => Some(Key::Quit),
+        KeyCode::Char('e') => Some(Key::Edit),
+        _ => None,
+    };
+
+    match key_event.kind {
+        KeyEventKind::Press => {
+            if let Some(key) = key {
+                vec![Message::Press(key)]
+            } else {
+                vec![]
+            }
+        }
+        KeyEventKind::Release => {
+            if let Some(key) = key {
+                vec![Message::Release(key)]
+            } else {
+                vec![]
+            }
+        }
         _ => vec![],
     }
 }
 
 fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
-    let title = Title::from(" KentaW Tracker ".bold());
+    let title = Title::from(" KentaW Tracker ".bold().red());
     let instructions = Title::from(Line::from(vec![
         " Play ".into(),
         "<Space>".blue().bold(),
@@ -149,7 +226,7 @@ fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
     let datasets = vec![Dataset::default()
         .marker(symbols::Marker::Braille)
         .graph_type(GraphType::Line)
-        .style(Style::default().magenta())
+        .style(Style::default().cyan())
         .data(points0.as_slice())];
 
     let x_axis = Axis::default().bounds([0.0, 2048.0]);

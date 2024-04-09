@@ -17,7 +17,7 @@ pub fn hex_db(hex: u8) -> f64 {
 }
 
 pub fn db_hex(db: f64) -> u8 {
-    (db * 4.0 + 224.0).floor() as u8
+    (db * 4.0 + 224.0).round() as u8
 }
 
 pub fn inc_hex_db_amp(amp: f64, inc: i16) -> f64 {

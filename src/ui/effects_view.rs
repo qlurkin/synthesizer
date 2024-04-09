@@ -34,7 +34,7 @@ pub fn update_effect(state: &mut State, msg: EffectMessage) -> Result<Vec<Messag
 }
 
 pub fn render_effect(area: Rect, buf: &mut Buffer, state: &State) {
-    let title = Title::from(" Effects ".bold());
+    let title = Title::from(" Effects ".bold().red());
     let block = Block::default()
         .title(title.alignment(Alignment::Center))
         .borders(Borders::ALL)

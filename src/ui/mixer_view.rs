@@ -30,10 +30,6 @@ pub enum MixerControl {
 
 pub enum MixerMessage {
     Inc(MixerControl, i16),
-    Up,
-    Down,
-    Left,
-    Right,
 }
 
 pub struct MixerState {
@@ -52,17 +48,25 @@ fn is(state: &State, control: MixerControl) -> bool {
     state.mixer_state.focused == control
 }
 
-pub fn update_mixer(state: &mut State, msg: MixerMessage) -> Result<Vec<Message>> {
+pub fn update_mixer(state: &mut State, msg: Message) -> Result<Vec<Message>> {
     match msg {
-        MixerMessage::Up => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
+        Message::EditUp => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
             state.mixer_state.focused.clone(),
             1,
         ))]),
-        MixerMessage::Down => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
+        Message::EditDown => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
             state.mixer_state.focused.clone(),
             -1,
         ))]),
-        MixerMessage::Left => {
+        Message::EditLeft => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
+            state.mixer_state.focused.clone(),
+            -16,
+        ))]),
+        Message::EditRight => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
+            state.mixer_state.focused.clone(),
+            16,
+        ))]),
+        Message::Left => {
             match state.mixer_state.focused {
                 MixerControl::Track(i) => {
                     if i > 0 {
@@ -81,7 +85,7 @@ pub fn update_mixer(state: &mut State, msg: MixerMessage) -> Result<Vec<Message>
             }
             Ok(vec![])
         }
-        MixerMessage::Right => {
+        Message::Right => {
             match state.mixer_state.focused {
                 MixerControl::Track(i) => {
                     if i < 7 {
@@ -100,7 +104,7 @@ pub fn update_mixer(state: &mut State, msg: MixerMessage) -> Result<Vec<Message>
             }
             Ok(vec![])
         }
-        MixerMessage::Inc(control, value) => {
+        Message::MixerMessage(MixerMessage::Inc(control, value)) => {
             match control {
                 MixerControl::Track(i) => {
                     state.tracker.tracks[i].mix_level =
@@ -127,11 +131,12 @@ pub fn update_mixer(state: &mut State, msg: MixerMessage) -> Result<Vec<Message>
             }
             Ok(vec![])
         }
+        _ => Ok(vec![]),
     }
 }
 
 pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
-    let title = Title::from(" Mixer ".bold());
+    let title = Title::from(" Mixer ".bold().red());
     let block = Block::default()
         .title(title.alignment(Alignment::Center))
         .borders(Borders::ALL)
@@ -254,11 +259,11 @@ impl Widget for Meter {
         }
         buf.get_mut(area.x, area.bottom() - full - 1)
             .set_symbol(symbols[partial])
-            .set_style(Style::default().bg(Color::Black).fg(Color::Yellow));
+            .set_style(Style::default().bg(Color::Black).fg(Color::Cyan));
         for i in (area.bottom() - full)..area.bottom() {
             buf.get_mut(area.x, i)
                 .set_symbol(bar_set.full)
-                .set_style(Style::default().fg(Color::Yellow));
+                .set_style(Style::default().fg(Color::Cyan));
         }
     }
 }

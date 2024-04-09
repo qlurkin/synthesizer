@@ -9,7 +9,11 @@ use cpal::{
 };
 use std::io::stdout;
 
-use crossterm::{execute, terminal::*};
+use crossterm::{
+    event::{KeyboardEnhancementFlags, PopKeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
+    execute,
+    terminal::*,
+};
 use fundsp::hacker::*;
 use ratatui::prelude::*;
 
@@ -55,7 +59,14 @@ where
 
     let mut state = State::new(tracker);
 
-    execute!(stdout(), EnterAlternateScreen)?;
+    execute!(
+        stdout(),
+        EnterAlternateScreen,
+        PushKeyboardEnhancementFlags(
+            KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
+                | KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+        )
+    )?;
     enable_raw_mode()?;
     let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
     while !state.exit {
@@ -68,7 +79,7 @@ where
                 .collect();
         }
     }
-    execute!(stdout(), LeaveAlternateScreen)?;
+    execute!(stdout(), LeaveAlternateScreen, PopKeyboardEnhancementFlags)?;
     disable_raw_mode()?;
 
     Ok(())
