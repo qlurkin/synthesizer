@@ -1,15 +1,3 @@
-// pub fn _hex_amp(hex: u8) -> f64 {
-//     hex as f64 / 255.0
-// }
-//
-// pub fn _db_to_volume(db: f32) -> f32 {
-//     (10.0_f32).powf(0.05 * db)
-// }
-//
-// pub fn _volume_to_db(volume: f32) -> f32 {
-//     20.0_f32 * volume.log10()
-// }
-
 use fundsp::math::{amp_db, db_amp};
 
 pub fn hex_db(hex: u8) -> f64 {
@@ -33,10 +21,24 @@ pub fn inc_hex_db_amp(amp: f64, inc: i16) -> f64 {
     db_amp(hex_db(inced as u8))
 }
 
-pub fn hex_db_amp(hex: u8) -> f64 {
-    if hex == 0 {
-        0.0
-    } else {
-        db_amp(hex_db(hex))
+pub fn hex_amp(min: f64, max: f64, hex: u8) -> f64 {
+    min + hex as f64 * (max - min) / 255.0
+}
+
+pub fn amp_hex(min: f64, max: f64, amp: f64) -> u8 {
+    let amp = if amp > max { max } else { amp };
+    let amp = if amp < min { min } else { amp };
+
+    (255.0 * (amp - min) / (max - min)).round() as u8
+}
+
+pub fn inc_hex_amp(min: f64, max: f64, amp: f64, inc: i16) -> f64 {
+    let mut inced = amp_hex(min, max, amp) as i16 + inc;
+    if inced > 255 {
+        inced = 255;
     }
+    if inced < 0 {
+        inced = 0;
+    }
+    hex_amp(min, max, inced as u8)
 }

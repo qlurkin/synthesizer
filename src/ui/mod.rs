@@ -4,7 +4,7 @@ mod mixer_view;
 use std::{collections::HashMap, time::Duration};
 
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind, ModifierKeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyEvent, KeyEventKind};
 use ratatui::{
     prelude::*,
     widgets::{
@@ -16,7 +16,7 @@ use ratatui::{
 use crate::{tracker::Tracker, ui::mixer_view::MixerState};
 
 use self::{
-    effects_view::{render_effect, EffectState},
+    effects_view::{render_effect, update_effect, EffectMessage, EffectState},
     mixer_view::{render_mixer, update_mixer, MixerMessage},
 };
 
@@ -59,6 +59,7 @@ pub enum Message {
     Play,
     Quit,
     MixerMessage(MixerMessage),
+    EffectMessage(EffectMessage),
     Up,
     Down,
     Left,
@@ -103,13 +104,8 @@ pub fn update(state: &mut State, msg: Message) -> Result<Vec<Message>> {
             let key_state = state.keyboard.entry(key).or_insert(false);
             if !*key_state {
                 *key_state = true;
-
-                match key {
-                    _ => Ok(vec![]),
-                }
-            } else {
-                Ok(vec![])
             }
+            Ok(vec![])
         }
         Message::Release(key) => {
             state.keyboard.insert(key, false);
@@ -136,6 +132,7 @@ pub fn update(state: &mut State, msg: Message) -> Result<Vec<Message>> {
                 _ => Ok(vec![]),
             }
         }
+        Message::EffectMessage(_) => update_effect(state, msg),
         Message::MixerMessage(_) => update_mixer(state, msg),
         Message::Up => update_mixer(state, msg),
         Message::Down => update_mixer(state, msg),
@@ -170,6 +167,7 @@ fn handle_key_event(key_event: KeyEvent) -> Vec<Message> {
         KeyCode::Right => Some(Key::Right),
         KeyCode::Char('q') => Some(Key::Quit),
         KeyCode::Char('e') => Some(Key::Edit),
+        KeyCode::Char('o') => Some(Key::Option),
         _ => None,
     };
 
@@ -193,10 +191,14 @@ fn handle_key_event(key_event: KeyEvent) -> Vec<Message> {
 }
 
 fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
-    let title = Title::from(" KentaW Tracker ".bold().red());
+    let title = Title::from(" TermTracker ".bold().red());
     let instructions = Title::from(Line::from(vec![
         " Play ".into(),
         "<Space>".blue().bold(),
+        " Edit ".into(),
+        "<E>".blue().bold(),
+        " Option ".into(),
+        "<O>".blue().bold(),
         " Quit ".into(),
         "<Q> ".blue().bold(),
     ]));
@@ -244,7 +246,7 @@ fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
         state,
     );
     render_effect(
-        Rect::new(inner_area.x + 36, inner_area.y + 10, 36, 8),
+        Rect::new(inner_area.x + 36, inner_area.y + 10, 28, 16),
         buf,
         state,
     );

@@ -11,9 +11,9 @@ pub struct Tone {
 
 #[allow(unused)]
 impl Tone {
-    pub fn get_frequency(&self) -> f32 {
+    pub fn get_frequency(&self) -> f64 {
         let base_frequency = 440.0; // Fréquence du La 4ème octave
-        let semitone_ratio = 2.0_f32.powf(1.0 / 12.0); // Ratio entre deux demi-tons successifs
+        let semitone_ratio = 2.0_f64.powf(1.0 / 12.0); // Ratio entre deux demi-tons successifs
 
         let semitone_difference = (self.octave - 4) * 12 + self.semitone; // Nombre total de demi-tons par rapport au La 4ème octave
         base_frequency * semitone_ratio.powi(semitone_difference)
@@ -62,8 +62,46 @@ impl Tone {
     }
 }
 
+pub enum Waveform {
+    Sine,
+    Saw,
+    Triangle,
+    Square,
+    Pulse { duty_cycle: f64 },
+}
+
+impl Waveform {
+    pub fn unit(&self) -> Box<dyn AudioUnit64> {
+        match self {
+            Waveform::Sine => Box::new(sine()),
+            Waveform::Saw => Box::new(saw()),
+            Waveform::Triangle => Box::new(triangle()),
+            Waveform::Square => Box::new(square()),
+            Waveform::Pulse { duty_cycle } => {
+                Box::new((multipass::<U1>() | dc(*duty_cycle)) >> pulse())
+            }
+        }
+    }
+}
+
+pub enum InstrumentType {
+    None,
+    Simple { waveform: Waveform },
+}
+
+impl InstrumentType {
+    pub fn unit(&self, frequency: f64, velocity: f64) -> Box<dyn AudioUnit64> {
+        match self {
+            InstrumentType::None => Box::new(zero()),
+            InstrumentType::Simple { waveform } => {
+                Box::new(dc(frequency) >> Net64::wrap(waveform.unit()))
+            }
+        }
+    }
+}
+
 pub struct Instrument {
-    unit: Box<dyn AudioUnit64>,
+    ty: InstrumentType,
     dry_level: f64,
     reverb_level: f64,
     chorus_level: f64,
@@ -72,9 +110,9 @@ pub struct Instrument {
 }
 
 impl Instrument {
-    pub fn new(unit: Box<dyn AudioUnit64>) -> Self {
+    pub fn new(ty: InstrumentType) -> Self {
         Self {
-            unit,
+            ty,
             dry_level: 1.0,
             reverb_level: 1.0,
             chorus_level: 1.0,
@@ -83,8 +121,8 @@ impl Instrument {
         }
     }
 
-    pub fn get_unit(&self) -> Box<dyn AudioUnit64> {
-        let net = Net64::wrap(self.unit.clone());
+    pub fn unit(&self, frequency: f64, velocity: f64) -> Box<dyn AudioUnit64> {
+        let net = Net64::wrap(self.ty.unit(frequency, velocity));
         let net = net >> pan(self.pan);
 
         let net = net
@@ -134,14 +172,19 @@ impl Track {
         }
     }
 
-    pub fn get_unit(&mut self, instrument: &Instrument) -> Box<dyn AudioUnit64> {
+    pub fn unit(
+        &mut self,
+        instrument: &Instrument,
+        frequency: f64,
+        velocity: f64,
+    ) -> Box<dyn AudioUnit64> {
         let (snoop0, snoop0_backend) = snoop(2048);
         let (snoop1, snoop1_backend) = snoop(2048);
 
         self.snoop0 = snoop0;
         self.snoop1 = snoop1;
 
-        let mut net = Net64::wrap(instrument.get_unit());
+        let mut net = Net64::wrap(instrument.unit(frequency, velocity));
         net = net
             >> (((multipass::<U2>() * self.mix_level) >> (snoop0_backend | snoop1_backend))
                 | multipass::<U6>());
@@ -161,14 +204,14 @@ pub struct Tracker {
     pub delay_mix_level: Shared<f64>,
     pub chorus_to_reverb_level: Shared<f64>,
     pub delay_to_reverb_level: Shared<f64>,
-    reverb_room_size: f64,
-    reverb_time: f64,
-    reverb_diffusion: f64,
-    reverb_modulation_speed: f64,
-    reverb_filter_frequency: f64,
-    chorus_separation: f64,
-    chorus_variation: f64,
-    chorus_mod_frequency: f64,
+    pub reverb_room_size: f64,
+    pub reverb_time: f64,
+    pub reverb_diffusion: f64,
+    pub reverb_modulation_speed: f64,
+    pub reverb_filter_frequency: f64,
+    pub chorus_separation: f64,
+    pub chorus_variation: f64,
+    pub chorus_mod_frequency: f64,
     pub snoop_reverb0: Snoop<f64>,
     pub snoop_reverb1: Snoop<f64>,
     pub snoop_chorus0: Snoop<f64>,
@@ -177,8 +220,8 @@ pub struct Tracker {
     pub snoop_delay1: Snoop<f64>,
     pub snoop_out0: Snoop<f64>,
     pub snoop_out1: Snoop<f64>,
-    delay_time: f64,
-    delay_decay: f64,
+    pub delay_time: f64,
+    pub delay_decay: f64,
     reverb: Slot64,
     chorus: Slot64,
     delay: Slot64,
@@ -192,7 +235,7 @@ impl Tracker {
         let chorus_mix_level = shared(1.0);
         let delay_mix_level = shared(1.0);
         let chorus_to_reverb_level = shared(0.0);
-        let delay_to_reverb_level = shared(1.0);
+        let delay_to_reverb_level = shared(0.0);
         let reverb_room_size = 10.0;
         let reverb_time = 2.0;
         let reverb_diffusion = 0.5;
@@ -323,14 +366,11 @@ impl Tracker {
         tracker.rebuild_chorus();
         tracker.rebuild_delay();
 
-        let mut rng = Rnd::new();
         tracker
             .instruments
-            .push(Some(Instrument::new(Box::new(bassdrum(
-                0.2 + rng.f64() * 0.02,
-                180.0,
-                60.0,
-            )))));
+            .push(Some(Instrument::new(InstrumentType::Simple {
+                waveform: Waveform::Pulse { duty_cycle: 0.1 },
+            })));
 
         (tracker, backend)
     }
@@ -396,7 +436,7 @@ impl Tracker {
                 Fade::Smooth,
                 0.0,
                 0.25,
-                self.tracks[0].get_unit(instrument),
+                self.tracks[0].unit(instrument, self.tone.get_frequency(), 1.0),
             );
         }
     }

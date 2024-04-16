@@ -52,19 +52,19 @@ pub fn update_mixer(state: &mut State, msg: Message) -> Result<Vec<Message>> {
     match msg {
         Message::EditUp => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
             state.mixer_state.focused.clone(),
-            1,
+            16,
         ))]),
         Message::EditDown => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
             state.mixer_state.focused.clone(),
-            -1,
+            -16,
         ))]),
         Message::EditLeft => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
             state.mixer_state.focused.clone(),
-            -16,
+            -1,
         ))]),
         Message::EditRight => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
             state.mixer_state.focused.clone(),
-            16,
+            1,
         ))]),
         Message::Left => {
             match state.mixer_state.focused {
