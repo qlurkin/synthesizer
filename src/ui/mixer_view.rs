@@ -107,8 +107,10 @@ pub fn update_mixer(state: &mut State, msg: Message) -> Result<Vec<Message>> {
         Message::MixerMessage(MixerMessage::Inc(control, value)) => {
             match control {
                 MixerControl::Track(i) => {
-                    state.tracker.tracks[i].mix_level =
-                        inc_hex_db_amp(state.tracker.tracks[i].mix_level, value);
+                    state.tracker.tracks[i].mix_level.set(inc_hex_db_amp(
+                        state.tracker.tracks[i].mix_level.value(),
+                        value,
+                    ));
                 }
                 MixerControl::Chorus => {
                     state.tracker.chorus_mix_level.set(inc_hex_db_amp(
@@ -147,7 +149,7 @@ pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
 
     for i in 0..8 {
         MixControl::new(
-            tracker.tracks[i].mix_level,
+            tracker.tracks[i].mix_level.value(),
             snoop_maxer(&tracker.tracks[i].snoop0, 2048),
             snoop_maxer(&tracker.tracks[i].snoop1, 2048),
             format!("T{}", i),
