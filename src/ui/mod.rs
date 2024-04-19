@@ -217,7 +217,7 @@ fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
 
     let graph_area = Rect::new(inner_area.x, inner_area.y, inner_area.width, 10);
 
-    let points = 2048;
+    let points = 1024;
     let points0: Vec<(f64, f64)> = (0..points)
         .map(|i| {
             let y = state.tracker.snoop_out0.at(i);
@@ -231,7 +231,7 @@ fn render_app(state: &State, area: Rect, buf: &mut Buffer) {
         .style(Style::default().cyan())
         .data(points0.as_slice())];
 
-    let x_axis = Axis::default().bounds([0.0, 2048.0]);
+    let x_axis = Axis::default().bounds([0.0, points as f64]);
 
     let y_axis = Axis::default().bounds([-1.0, 1.0]);
 

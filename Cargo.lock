@@ -52,9 +52,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.80"
+version = "1.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5ad32ce52e4161730f7098c077cd2ed6229b5804ccf99e5366be1ab72a98b4e1"
+checksum = "f538837af36e6f6a9be0faa67f9a314f8119e4e4b5867c6ab40ed60360142519"
 
 [[package]]
 name = "arrayvec"
@@ -323,9 +323,9 @@ checksum = "af9673d8203fcb076b19dfd17e38b3d4ae9f44959416ea532ce72415a6020365"
 
 [[package]]
 name = "fundsp"
-version = "0.17.0"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "684d4596d8db679b03aa4334a92b90eaaa762c7a30e6a65f949a3e2e090f4fe6"
+checksum = "384a8ad7f6f81affc39064e6696bd45653e6997cc0c5eaa8e97c25cbf5f9b578"
 dependencies = [
  "duplicate",
  "dyn-clone",
@@ -801,9 +801,9 @@ dependencies = [
 
 [[package]]
 name = "ratatui"
-version = "0.26.1"
+version = "0.26.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcb12f8fbf6c62614b0d56eb352af54f6a22410c3b079eb53ee93c7b97dd31d8"
+checksum = "a564a852040e82671dc50a37d88f3aa83bbc690dfc6844cfe7a2591620206a80"
 dependencies = [
  "bitflags 2.4.2",
  "cassowary",
@@ -964,12 +964,12 @@ checksum = "e6ecd384b10a64542d77071bd64bd7b231f4ed5940fba55e98c3de13824cf3d7"
 
 [[package]]
 name = "stability"
-version = "0.1.1"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebd1b177894da2a2d9120208c3386066af06a488255caabc5de8ddca22dbc3ce"
+checksum = "2ff9eaf853dec4c8802325d8b6d3dffa86cc707fd7a1a4cdbf416e13b061787a"
 dependencies = [
  "quote",
- "syn 1.0.109",
+ "syn 2.0.52",
 ]
 
 [[package]]
@@ -1208,7 +1208,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
 dependencies = [
  "proc-macro2",
- "quote",
  "unicode-ident",
 ]
 
@@ -1237,9 +1236,9 @@ dependencies = [
 
 [[package]]
 name = "thingbuf"
-version = "0.1.4"
+version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4706f1bfb859af03f099ada2de3cea3e515843c2d3e93b7893f16d94a37f9415"
+checksum = "662b54ef6f7b4e71f683dadc787bbb2d8e8ef2f91b682ebed3164a5a7abca905"
 dependencies = [
  "parking_lot",
  "pin-project",

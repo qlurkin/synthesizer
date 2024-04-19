@@ -7,6 +7,19 @@ pub struct Tone {
     semitone: i32,
 }
 
+fn ads(attack: f64, decay: f64, sustain: f64, time: f64) -> f64 {
+    if time < attack {
+        lerp(0.0_f64, 1.0_f64, time / attack)
+    } else {
+        let decay_time = time - attack;
+        if decay_time < decay {
+            lerp(1.0_f64, sustain, decay_time / decay)
+        } else {
+            sustain
+        }
+    }
+}
+
 #[allow(unused)]
 impl Tone {
     pub fn get_frequency(&self) -> f64 {
@@ -82,17 +95,59 @@ impl Waveform {
     }
 }
 
+#[derive(Clone, Copy)]
+pub enum Envelope {
+    Ads {
+        attack: f64,
+        decay: f64,
+        sustain: f64,
+    },
+    None,
+}
+
+impl Envelope {
+    pub fn level(&self, time: f64) -> f64 {
+        match self {
+            Envelope::Ads {
+                attack,
+                decay,
+                sustain,
+            } => {
+                if time < *attack {
+                    lerp(0.0_f64, 1.0_f64, time / attack)
+                } else {
+                    let decay_time = time - attack;
+                    if decay_time < *decay {
+                        lerp(1.0_f64, *sustain, decay_time / decay)
+                    } else {
+                        *sustain
+                    }
+                }
+            }
+            Envelope::None => 1.0,
+        }
+    }
+}
+
 pub enum InstrumentType {
     None,
-    Simple { waveform: Waveform },
+    Simple {
+        waveform: Waveform,
+        envelope: Envelope,
+    },
 }
 
 impl InstrumentType {
     pub fn unit(&self, frequency: f64, velocity: f64) -> Box<dyn AudioUnit64> {
         match self {
             InstrumentType::None => Box::new(zero()),
-            InstrumentType::Simple { waveform } => {
-                Box::new(dc(frequency) >> Net64::wrap(waveform.unit()))
+            InstrumentType::Simple { waveform, envelope } => {
+                let envelope = *envelope;
+                Box::new(
+                    dc(frequency)
+                        >> (fundsp::hacker::envelope(move |t| envelope.level(t))
+                            * Net64::wrap(waveform.unit())),
+                )
             }
         }
     }
@@ -112,9 +167,9 @@ impl Instrument {
         Self {
             ty,
             dry_level: 1.0,
-            reverb_level: 1.0,
-            chorus_level: 1.0,
-            delay_level: 1.0,
+            reverb_level: 0.0,
+            chorus_level: 0.0,
+            delay_level: 0.0,
             pan: 0.0,
         }
     }
@@ -263,21 +318,10 @@ impl Tracker {
 
         let pre_chorus_mixer = net.push(Box::new(sum::<U8, _, _>(|_| multipass::<U2>())));
 
-        // let pre_chorus_mixer = net.push(Box::new(
-        //     multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>(),
-        // ));
-
-        for i in 0..NB_TRACKS {
-            net.connect(track_ids[i], 2, pre_chorus_mixer, i * 2);
-            net.connect(track_ids[i], 3, pre_chorus_mixer, i * 2 + 1);
-        }
+        track_ids.iter().enumerate().for_each(|(i, id)| {
+            net.connect(*id, 2, pre_chorus_mixer, i * 2);
+            net.connect(*id, 3, pre_chorus_mixer, i * 2 + 1);
+        });
 
         let chorus_id = net.push(Box::new(chorus_backend));
 
@@ -287,21 +331,11 @@ impl Tracker {
         net.pipe(chorus_id, chorus_spliter);
 
         let pre_delay_mixer = net.push(Box::new(sum::<U8, _, _>(|_| multipass::<U2>())));
-        // let pre_delay_mixer = net.push(Box::new(
-        //     multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>()
-        //         + multipass::<U2>(),
-        // ));
 
-        for i in 0..NB_TRACKS {
-            net.connect(track_ids[i], 4, pre_delay_mixer, i * 2);
-            net.connect(track_ids[i], 5, pre_delay_mixer, i * 2 + 1);
-        }
+        track_ids.iter().enumerate().for_each(|(i, id)| {
+            net.connect(*id, 4, pre_delay_mixer, i * 2);
+            net.connect(*id, 5, pre_delay_mixer, i * 2 + 1);
+        });
 
         let delay_id = net.push(Box::new(delay_backend));
 
@@ -310,7 +344,6 @@ impl Tracker {
         let delay_spliter = net.push(Box::new(multisplit::<U2, U2>()));
         net.pipe(delay_id, delay_spliter);
 
-        // let pre_reverb_mixer = sum::<U8, _, _>(|_| multipass::<U2>());
         let pre_reverb_mixer = net.push(Box::new(
             sum::<U8, _, _>(|_| multipass::<U2>())
                 + ((multipass::<U1>() * var(&chorus_to_reverb_level))
@@ -319,10 +352,10 @@ impl Tracker {
                     | (multipass::<U1>() * var(&delay_to_reverb_level))),
         ));
 
-        for i in 0..NB_TRACKS {
-            net.connect(track_ids[i], 6, pre_reverb_mixer, i * 2);
-            net.connect(track_ids[i], 7, pre_reverb_mixer, i * 2 + 1);
-        }
+        track_ids.iter().enumerate().for_each(|(i, id)| {
+            net.connect(*id, 6, pre_reverb_mixer, i * 2);
+            net.connect(*id, 7, pre_reverb_mixer, i * 2 + 1);
+        });
         net.connect(chorus_spliter, 2, pre_reverb_mixer, 16);
         net.connect(chorus_spliter, 3, pre_reverb_mixer, 17);
         net.connect(delay_spliter, 2, pre_reverb_mixer, 18);
@@ -343,10 +376,10 @@ impl Tracker {
                 >> (snoop_out0_backend | snoop_out1_backend),
         ));
 
-        for i in 0..NB_TRACKS {
-            net.connect(track_ids[i], 0, mixer, i * 2);
-            net.connect(track_ids[i], 1, mixer, i * 2 + 1);
-        }
+        track_ids.iter().enumerate().for_each(|(i, id)| {
+            net.connect(*id, 0, mixer, i * 2);
+            net.connect(*id, 1, mixer, i * 2 + 1);
+        });
         net.connect(chorus_spliter, 0, mixer, 16);
         net.connect(chorus_spliter, 1, mixer, 17);
         net.connect(delay_spliter, 0, mixer, 18);
@@ -404,7 +437,12 @@ impl Tracker {
         tracker
             .instruments
             .push(Some(Instrument::new(InstrumentType::Simple {
-                waveform: Waveform::Pulse { duty_cycle: 0.1 },
+                waveform: Waveform::Saw,
+                envelope: Envelope::Ads {
+                    attack: 0.1,
+                    decay: 0.1,
+                    sustain: 0.8,
+                },
             })));
 
         (tracker, backend)
