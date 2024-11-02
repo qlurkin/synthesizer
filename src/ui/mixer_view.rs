@@ -1,15 +1,22 @@
 use fundsp::math::amp_db;
 use ratatui::{
     prelude::*,
-    widgets::{block::Title, Block, Borders},
+    widgets::{Block, Borders},
 };
 
-use crate::math::{db_hex, inc_hex_db_amp};
+use crate::{
+    math::{db_hex, inc_hex_db_amp},
+    tracker::Tracker,
+};
 
-use super::{Message, State};
-use anyhow::Result;
+use super::{
+    component::Component,
+    focusmanager::{FocusManager, FocusableComponent},
+    keyboard::InputMessage,
+    Message,
+};
 
-fn snoop_maxer(snoop: &fundsp::hacker::Snoop<f64>, samples_nb: usize) -> f64 {
+fn snoop_maxer(snoop: &fundsp::hacker::Snoop, samples_nb: usize) -> f32 {
     if let Some(max) = (0..samples_nb)
         .map(|i| snoop.at(i).abs())
         .max_by(|a, b| a.total_cmp(b))
@@ -20,7 +27,7 @@ fn snoop_maxer(snoop: &fundsp::hacker::Snoop<f64>, samples_nb: usize) -> f64 {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub enum MixerControl {
     Track(usize),
     Chorus,
@@ -28,207 +35,145 @@ pub enum MixerControl {
     Reverb,
 }
 
-pub enum MixerMessage {
-    Inc(MixerControl, i16),
+pub struct MixerView {
+    focusmanager: FocusManager<MixerControl>,
 }
 
-pub struct MixerState {
-    pub focused: MixerControl,
-}
+impl MixerView {
+    pub fn new() -> Self {
+        let mut focusmanager = FocusManager::new(MixerControl::Track(0));
 
-impl Default for MixerState {
-    fn default() -> Self {
-        Self {
-            focused: MixerControl::Track(0),
+        for i in 0..8 {
+            focusmanager.add(
+                MixerControl::Track(i),
+                Box::new(EditableValue::new(
+                    Box::new(move |tracker: &Tracker| tracker.tracks[i].mix_level.value()),
+                    Box::new(move |tracker: &mut Tracker, value: f32| {
+                        tracker.tracks[i].mix_level.set(value)
+                    }),
+                )),
+            );
         }
+
+        focusmanager.add(
+            MixerControl::Chorus,
+            Box::new(EditableValue::new(
+                Box::new(|tracker: &Tracker| tracker.chorus_mix_level.value()),
+                Box::new(|tracker: &mut Tracker, value: f32| tracker.chorus_mix_level.set(value)),
+            )),
+        );
+
+        focusmanager.add(
+            MixerControl::Delay,
+            Box::new(EditableValue::new(
+                Box::new(|tracker: &Tracker| tracker.delay_mix_level.value()),
+                Box::new(|tracker: &mut Tracker, value: f32| tracker.delay_mix_level.set(value)),
+            )),
+        );
+
+        focusmanager.add(
+            MixerControl::Reverb,
+            Box::new(EditableValue::new(
+                Box::new(|tracker: &Tracker| tracker.reverb_mix_level.value()),
+                Box::new(|tracker: &mut Tracker, value: f32| tracker.reverb_mix_level.set(value)),
+            )),
+        );
+
+        Self { focusmanager }
     }
 }
 
-fn is(state: &State, control: MixerControl) -> bool {
-    state.mixer_state.focused == control
-}
-
-pub fn update_mixer(state: &mut State, msg: Message) -> Result<Vec<Message>> {
-    match msg {
-        Message::EditUp => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
-            state.mixer_state.focused.clone(),
-            16,
-        ))]),
-        Message::EditDown => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
-            state.mixer_state.focused.clone(),
-            -16,
-        ))]),
-        Message::EditLeft => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
-            state.mixer_state.focused.clone(),
-            -1,
-        ))]),
-        Message::EditRight => Ok(vec![Message::MixerMessage(MixerMessage::Inc(
-            state.mixer_state.focused.clone(),
-            1,
-        ))]),
-        Message::Left => {
-            match state.mixer_state.focused {
-                MixerControl::Track(i) => {
-                    if i > 0 {
-                        state.mixer_state.focused = MixerControl::Track(i - 1);
-                    }
-                }
-                MixerControl::Chorus => {
-                    state.mixer_state.focused = MixerControl::Track(7);
-                }
-                MixerControl::Delay => {
-                    state.mixer_state.focused = MixerControl::Chorus;
-                }
-                MixerControl::Reverb => {
-                    state.mixer_state.focused = MixerControl::Delay;
-                }
-            }
-            Ok(vec![])
-        }
-        Message::Right => {
-            match state.mixer_state.focused {
-                MixerControl::Track(i) => {
-                    if i < 7 {
-                        state.mixer_state.focused = MixerControl::Track(i + 1);
-                    } else {
-                        state.mixer_state.focused = MixerControl::Chorus;
-                    }
-                }
-                MixerControl::Chorus => {
-                    state.mixer_state.focused = MixerControl::Delay;
-                }
-                MixerControl::Delay => {
-                    state.mixer_state.focused = MixerControl::Reverb;
-                }
-                _ => {}
-            }
-            Ok(vec![])
-        }
-        Message::MixerMessage(MixerMessage::Inc(control, value)) => {
-            match control {
-                MixerControl::Track(i) => {
-                    state.tracker.tracks[i].mix_level.set(inc_hex_db_amp(
-                        state.tracker.tracks[i].mix_level.value(),
-                        value,
-                    ));
-                }
-                MixerControl::Chorus => {
-                    state.tracker.chorus_mix_level.set(inc_hex_db_amp(
-                        state.tracker.chorus_mix_level.value(),
-                        value,
-                    ));
-                }
-                MixerControl::Delay => {
-                    state
-                        .tracker
-                        .delay_mix_level
-                        .set(inc_hex_db_amp(state.tracker.delay_mix_level.value(), value));
-                }
-                MixerControl::Reverb => {
-                    state.tracker.reverb_mix_level.set(inc_hex_db_amp(
-                        state.tracker.reverb_mix_level.value(),
-                        value,
-                    ));
-                }
-            }
-            Ok(vec![])
-        }
-        _ => Ok(vec![]),
+impl Component for MixerView {
+    fn update(&mut self, tracker: &mut Tracker, msg: Message) -> Vec<Message> {
+        self.focusmanager.update(tracker, msg)
     }
-}
 
-pub fn render_mixer(area: Rect, buf: &mut Buffer, state: &State) {
-    let title = Title::from(" Mixer ".bold().red());
-    let block = Block::default()
-        .title(title.alignment(Alignment::Center))
-        .borders(Borders::ALL)
-        .border_set(symbols::border::THICK);
-    let inner = block.inner(area);
-    block.render(area, buf);
-    let tracker = &state.tracker;
+    fn render(&mut self, tracker: &Tracker, area: Rect, buf: &mut Buffer) {
+        let title = Span::from(" Mixer ").bold().red();
+        let block = Block::default()
+            .title_top(Line::from(title).centered())
+            .borders(Borders::ALL)
+            .border_set(symbols::border::THICK);
+        let inner = block.inner(area);
+        block.render(area, buf);
 
-    for i in 0..8 {
-        MixControl::new(
-            tracker.tracks[i].mix_level.value(),
-            snoop_maxer(&tracker.tracks[i].snoop0, 2048),
-            snoop_maxer(&tracker.tracks[i].snoop1, 2048),
-            format!("T{}", i),
-            is(state, MixerControl::Track(i)),
-        )
-        .render(Rect::new(inner.x + 1 + i as u16 * 3, inner.y, 2, 6), buf);
-    }
-    MixControl::new(
-        tracker.chorus_mix_level.value(),
-        snoop_maxer(&tracker.snoop_chorus0, 2048),
-        snoop_maxer(&tracker.snoop_chorus1, 2048),
-        "CH".into(),
-        is(state, MixerControl::Chorus),
-    )
-    .render(Rect::new(inner.x + 25, inner.y, 2, 6), buf);
-    MixControl::new(
-        tracker.delay_mix_level.value(),
-        snoop_maxer(&tracker.snoop_delay0, 2048),
-        snoop_maxer(&tracker.snoop_delay1, 2048),
-        "DE".into(),
-        is(state, MixerControl::Delay),
-    )
-    .render(Rect::new(inner.x + 28, inner.y, 2, 6), buf);
-    MixControl::new(
-        tracker.reverb_mix_level.value(),
-        snoop_maxer(&tracker.snoop_reverb0, 2048),
-        snoop_maxer(&tracker.snoop_reverb1, 2048),
-        "RE".into(),
-        is(state, MixerControl::Reverb),
-    )
-    .render(Rect::new(inner.x + 31, inner.y, 2, 6), buf);
-}
+        fn render_track(
+            focusmanager: &mut FocusManager<MixerControl>,
+            tracker: &Tracker,
+            control: MixerControl,
+            meter0: f32,
+            meter1: f32,
+            label: String,
+            area: Rect,
+            buf: &mut Buffer,
+        ) {
+            Meter::new(meter0).render(Rect::new(area.x, area.y, 1, area.height - 2), buf);
+            Meter::new(meter1).render(Rect::new(area.x + 1, area.y, 1, area.height - 2), buf);
 
-struct MixControl {
-    gain: f64,
-    meter0: f64,
-    meter1: f64,
-    label: String,
-    focused: bool,
-}
+            focusmanager.render_component(
+                control,
+                tracker,
+                Rect::new(area.x, area.bottom() - 2, 2, 1),
+                buf,
+            );
 
-impl MixControl {
-    fn new(gain: f64, meter0: f64, meter1: f64, label: String, focused: bool) -> Self {
-        Self {
-            gain,
-            meter0,
-            meter1,
-            label,
-            focused,
+            Line::from(vec![label.gray()]).render(Rect::new(area.x, area.bottom() - 1, 2, 1), buf);
         }
-    }
-}
 
-impl Widget for MixControl {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        Meter::new(self.meter0).render(Rect::new(area.x, area.y, 1, area.height - 2), buf);
-        Meter::new(self.meter1).render(Rect::new(area.x + 1, area.y, 1, area.height - 2), buf);
-
-        let value = db_hex(amp_db(self.gain));
-
-        let mut line = Line::raw(format!("{:02x}", value).to_uppercase());
-        if self.focused {
-            line = line.style(Style::default().fg(Color::Black).bg(Color::White));
+        for i in 0..8 {
+            render_track(
+                &mut self.focusmanager,
+                tracker,
+                MixerControl::Track(i),
+                snoop_maxer(&tracker.tracks[i].snoop0, 2048),
+                snoop_maxer(&tracker.tracks[i].snoop1, 2048),
+                format!("T{}", i),
+                Rect::new(inner.x + 1 + i as u16 * 3, inner.y, 2, 6),
+                buf,
+            );
         }
-        line.render(Rect::new(area.x, area.bottom() - 2, 2, 1), buf);
 
-        Line::from(vec![self.label.gray()]).render(Rect::new(area.x, area.bottom() - 1, 2, 1), buf);
+        render_track(
+            &mut self.focusmanager,
+            tracker,
+            MixerControl::Chorus,
+            snoop_maxer(&tracker.snoop_chorus0, 2048),
+            snoop_maxer(&tracker.snoop_chorus1, 2048),
+            "CH".into(),
+            Rect::new(inner.x + 25, inner.y, 2, 6),
+            buf,
+        );
+
+        render_track(
+            &mut self.focusmanager,
+            tracker,
+            MixerControl::Delay,
+            snoop_maxer(&tracker.snoop_delay0, 2048),
+            snoop_maxer(&tracker.snoop_delay1, 2048),
+            "DE".into(),
+            Rect::new(inner.x + 28, inner.y, 2, 6),
+            buf,
+        );
+
+        render_track(
+            &mut self.focusmanager,
+            tracker,
+            MixerControl::Reverb,
+            snoop_maxer(&tracker.snoop_reverb0, 2048),
+            snoop_maxer(&tracker.snoop_reverb1, 2048),
+            "DE".into(),
+            Rect::new(inner.x + 31, inner.y, 2, 6),
+            buf,
+        );
     }
 }
 
 pub struct Meter {
-    ratio: f64,
+    ratio: f32,
 }
 
 impl Meter {
-    pub fn new(ratio: f64) -> Self {
+    pub fn new(ratio: f32) -> Self {
         Self { ratio }
     }
 }
@@ -250,22 +195,79 @@ impl Widget for Meter {
             bar_set.seven_eighths,
         ];
 
-        let level = (area.height) as f64 * self.ratio;
+        let level = (area.height) as f32 * self.ratio;
         let full = level.floor();
         let partial = ((level - full) * 8.0).floor() as usize;
         let full = full as u16;
         for i in area.y..(area.bottom() - full - 1) {
-            buf.get_mut(area.x, i)
+            buf.cell_mut((area.x, i))
+                .unwrap()
                 .set_symbol(bar_set.full)
                 .set_style(Style::default().fg(Color::Black));
         }
-        buf.get_mut(area.x, area.bottom() - full - 1)
+        buf.cell_mut((area.x, area.bottom() - full - 1))
+            .unwrap()
             .set_symbol(symbols[partial])
             .set_style(Style::default().bg(Color::Black).fg(Color::Cyan));
         for i in (area.bottom() - full)..area.bottom() {
-            buf.get_mut(area.x, i)
+            buf.cell_mut((area.x, i))
+                .unwrap()
                 .set_symbol(bar_set.full)
                 .set_style(Style::default().fg(Color::Cyan));
         }
+    }
+}
+
+pub struct EditableValue {
+    get_callback: Box<dyn Fn(&Tracker) -> f32>,
+    set_callback: Box<dyn Fn(&mut Tracker, f32)>,
+    focused: bool,
+}
+
+impl EditableValue {
+    pub fn new(
+        get_callback: Box<dyn Fn(&Tracker) -> f32>,
+        set_callback: Box<dyn Fn(&mut Tracker, f32)>,
+    ) -> Self {
+        Self {
+            set_callback,
+            get_callback,
+            focused: false,
+        }
+    }
+}
+
+impl Component for EditableValue {
+    fn update(&mut self, tracker: &mut Tracker, msg: Message) -> Vec<Message> {
+        if let Message::Input(input) = msg {
+            let inc: i16 = match input {
+                InputMessage::EditUp => 16,
+                InputMessage::EditDown => -16,
+                InputMessage::EditRight => 1,
+                InputMessage::EditLeft => -1,
+                _ => 0,
+            };
+
+            (self.set_callback)(tracker, inc_hex_db_amp((self.get_callback)(tracker), inc));
+            vec![]
+        } else {
+            vec![]
+        }
+    }
+
+    fn render(&mut self, tracker: &Tracker, area: Rect, buf: &mut Buffer) {
+        let value = db_hex(amp_db((self.get_callback)(tracker)));
+
+        let mut line = Line::raw(format!("{:02x}", value).to_uppercase());
+        if self.focused {
+            line = line.style(Style::default().fg(Color::Black).bg(Color::White));
+        }
+        line.render(area, buf);
+    }
+}
+
+impl FocusableComponent for EditableValue {
+    fn focus(&mut self, focused: bool) {
+        self.focused = focused;
     }
 }

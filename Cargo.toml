@@ -8,8 +8,8 @@ edition = "2021"
 [dependencies]
 
 cpal = "0.15.3"
-anyhow = "1.0.82"
-ratatui = "0.26.2"
-crossterm = "0.27.0"
-fundsp = "0.17.1"
-funutd = "0.14.0"
+anyhow = "1.0.89"
+ratatui = "0.29"
+crossterm = "0.28"
+fundsp = "0.20"
+funutd = "0.16"

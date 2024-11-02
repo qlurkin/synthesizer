@@ -1,13 +1,13 @@
 use crate::math::amp_hex;
 
 use super::{Message, State};
-use anyhow::Result;
 use ratatui::{
     prelude::*,
+    style::Styled,
     widgets::{block::Title, Block, Borders},
 };
 
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Eq, Hash)]
 pub enum EffectControl {
     ChorusToReverb,
     ChorusModFrequency,
@@ -23,6 +23,7 @@ pub enum EffectControl {
     ReverbFilterFrequency,
 }
 
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub enum EffectMessage {}
 
 pub struct EffectState {
@@ -45,9 +46,9 @@ fn control_style(state: &State, control: EffectControl) -> Style {
     }
 }
 
-pub fn update_effect(state: &mut State, msg: Message) -> Result<Vec<Message>> {
+pub fn update_effect(_state: &mut State, msg: Message) -> Vec<Message> {
     match msg {
-        _ => Ok(vec![]),
+        _ => vec![],
     }
 }
 
@@ -56,7 +57,7 @@ pub fn render_effect(area: Rect, buf: &mut Buffer, state: &State) {
     let block = Block::default()
         .title(title.alignment(Alignment::Center))
         .borders(Borders::ALL)
-        .border_set(symbols::border::THICK);
+        .border_set(symbols::border::PLAIN);
     let inner = block.inner(area);
     block.render(area, buf);
     let tracker = &state.tracker;
