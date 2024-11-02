@@ -1,19 +1,12 @@
-use fundsp::math::amp_db;
 use ratatui::{
     prelude::*,
     widgets::{Block, Borders},
 };
 
-use crate::{
-    math::{db_hex, inc_hex_db_amp},
-    tracker::Tracker,
-};
+use crate::{tracker::Tracker, ui::meter::Meter};
 
 use super::{
-    component::Component,
-    focusmanager::{FocusManager, FocusableComponent},
-    keyboard::InputMessage,
-    Message,
+    component::Component, editablevalue::EditableValue, focusmanager::FocusManager, Message,
 };
 
 fn snoop_maxer(snoop: &fundsp::hacker::Snoop, samples_nb: usize) -> f32 {
@@ -165,109 +158,5 @@ impl Component for MixerView {
             Rect::new(inner.x + 31, inner.y, 2, 6),
             buf,
         );
-    }
-}
-
-pub struct Meter {
-    ratio: f32,
-}
-
-impl Meter {
-    pub fn new(ratio: f32) -> Self {
-        Self { ratio }
-    }
-}
-
-impl Widget for Meter {
-    fn render(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        let bar_set = symbols::bar::NINE_LEVELS;
-        let symbols = [
-            bar_set.empty,
-            bar_set.one_eighth,
-            bar_set.one_quarter,
-            bar_set.three_eighths,
-            bar_set.half,
-            bar_set.five_eighths,
-            bar_set.three_quarters,
-            bar_set.seven_eighths,
-        ];
-
-        let level = (area.height) as f32 * self.ratio;
-        let full = level.floor();
-        let partial = ((level - full) * 8.0).floor() as usize;
-        let full = full as u16;
-        for i in area.y..(area.bottom() - full - 1) {
-            buf.cell_mut((area.x, i))
-                .unwrap()
-                .set_symbol(bar_set.full)
-                .set_style(Style::default().fg(Color::Black));
-        }
-        buf.cell_mut((area.x, area.bottom() - full - 1))
-            .unwrap()
-            .set_symbol(symbols[partial])
-            .set_style(Style::default().bg(Color::Black).fg(Color::Cyan));
-        for i in (area.bottom() - full)..area.bottom() {
-            buf.cell_mut((area.x, i))
-                .unwrap()
-                .set_symbol(bar_set.full)
-                .set_style(Style::default().fg(Color::Cyan));
-        }
-    }
-}
-
-pub struct EditableValue {
-    get_callback: Box<dyn Fn(&Tracker) -> f32>,
-    set_callback: Box<dyn Fn(&mut Tracker, f32)>,
-    focused: bool,
-}
-
-impl EditableValue {
-    pub fn new(
-        get_callback: Box<dyn Fn(&Tracker) -> f32>,
-        set_callback: Box<dyn Fn(&mut Tracker, f32)>,
-    ) -> Self {
-        Self {
-            set_callback,
-            get_callback,
-            focused: false,
-        }
-    }
-}
-
-impl Component for EditableValue {
-    fn update(&mut self, tracker: &mut Tracker, msg: Message) -> Vec<Message> {
-        if let Message::Input(input) = msg {
-            let inc: i16 = match input {
-                InputMessage::EditUp => 16,
-                InputMessage::EditDown => -16,
-                InputMessage::EditRight => 1,
-                InputMessage::EditLeft => -1,
-                _ => 0,
-            };
-
-            (self.set_callback)(tracker, inc_hex_db_amp((self.get_callback)(tracker), inc));
-            vec![]
-        } else {
-            vec![]
-        }
-    }
-
-    fn render(&mut self, tracker: &Tracker, area: Rect, buf: &mut Buffer) {
-        let value = db_hex(amp_db((self.get_callback)(tracker)));
-
-        let mut line = Line::raw(format!("{:02x}", value).to_uppercase());
-        if self.focused {
-            line = line.style(Style::default().fg(Color::Black).bg(Color::White));
-        }
-        line.render(area, buf);
-    }
-}
-
-impl FocusableComponent for EditableValue {
-    fn focus(&mut self, focused: bool) {
-        self.focused = focused;
     }
 }

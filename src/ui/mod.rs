@@ -1,8 +1,10 @@
 pub mod component;
 // mod effects_view;
+mod editablevalue;
 mod focusmanager;
 pub mod keyboard;
 pub mod message;
+mod meter;
 mod mixer_view;
 
 use component::Component;
