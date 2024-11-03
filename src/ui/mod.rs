@@ -1,6 +1,6 @@
 pub mod component;
-// mod effects_view;
 mod editablevalue;
+mod effects_view;
 mod focusmanager;
 pub mod keyboard;
 pub mod message;
@@ -8,6 +8,7 @@ mod meter;
 mod mixer_view;
 
 use component::Component;
+use effects_view::EffectsView;
 use keyboard::Keyboard;
 use message::Message;
 use mixer_view::MixerView;
@@ -31,6 +32,7 @@ pub struct Ui {
     keyboard: Keyboard,
     pub running: bool,
     mixer_view: MixerView,
+    effects_view: EffectsView,
 }
 
 impl Ui {
@@ -39,6 +41,7 @@ impl Ui {
             keyboard: Keyboard::new(),
             running: true,
             mixer_view: MixerView::new(),
+            effects_view: EffectsView::new(),
         }
     }
 
@@ -140,6 +143,7 @@ impl Component for Ui {
             .split(layout[1]);
 
         self.mixer_view.render(tracker, layout[0], buf);
+        self.effects_view.render(tracker, layout[1], buf);
     }
 }
 
