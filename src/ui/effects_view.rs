@@ -39,6 +39,8 @@ impl EffectsView {
                 Box::new(|tracker: &mut Tracker, value: f32| {
                     tracker.chorus_to_reverb_level.set(value)
                 }),
+                0.0,
+                1.0,
             )),
         );
 
@@ -50,6 +52,8 @@ impl EffectsView {
                     tracker.chorus_mod_frequency = value;
                     tracker.rebuild_chorus();
                 }),
+                0.0,
+                20.0,
             )),
         );
 
@@ -61,6 +65,8 @@ impl EffectsView {
                     tracker.chorus_separation = value;
                     tracker.rebuild_chorus();
                 }),
+                0.0,
+                5.0,
             )),
         );
 
@@ -72,6 +78,8 @@ impl EffectsView {
                     tracker.chorus_variation = value;
                     tracker.rebuild_chorus();
                 }),
+                0.0,
+                5.0,
             )),
         );
 
@@ -83,6 +91,8 @@ impl EffectsView {
                     tracker.delay_time = value;
                     tracker.rebuild_delay();
                 }),
+                0.0,
+                5.0,
             )),
         );
 
@@ -94,6 +104,8 @@ impl EffectsView {
                     tracker.delay_decay = value;
                     tracker.rebuild_delay();
                 }),
+                0.0,
+                40.0,
             )),
         );
 
@@ -104,6 +116,8 @@ impl EffectsView {
                 Box::new(|tracker: &mut Tracker, value: f32| {
                     tracker.delay_to_reverb_level.set(value);
                 }),
+                0.0,
+                1.0,
             )),
         );
 
@@ -115,6 +129,8 @@ impl EffectsView {
                     tracker.reverb_room_size = value;
                     tracker.rebuild_reverb();
                 }),
+                10.0,
+                30.0,
             )),
         );
 
@@ -126,6 +142,8 @@ impl EffectsView {
                     tracker.reverb_time = value;
                     tracker.rebuild_reverb();
                 }),
+                0.0,
+                5.0,
             )),
         );
 
@@ -137,6 +155,8 @@ impl EffectsView {
                     tracker.reverb_diffusion = value;
                     tracker.rebuild_reverb();
                 }),
+                0.0,
+                1.0,
             )),
         );
 
@@ -148,6 +168,8 @@ impl EffectsView {
                     tracker.reverb_modulation_speed = value;
                     tracker.rebuild_reverb();
                 }),
+                0.0,
+                1.0,
             )),
         );
 
@@ -159,6 +181,8 @@ impl EffectsView {
                     tracker.reverb_filter_frequency = value;
                     tracker.rebuild_reverb();
                 }),
+                20.0,
+                4000.0,
             )),
         );
 

@@ -44,6 +44,8 @@ impl MixerView {
                     Box::new(move |tracker: &mut Tracker, value: f32| {
                         tracker.tracks[i].mix_level.set(value)
                     }),
+                    0.0,
+                    1.0,
                 )),
             );
         }
@@ -53,6 +55,8 @@ impl MixerView {
             Box::new(EditableValue::new(
                 Box::new(|tracker: &Tracker| tracker.chorus_mix_level.value()),
                 Box::new(|tracker: &mut Tracker, value: f32| tracker.chorus_mix_level.set(value)),
+                0.0,
+                1.0,
             )),
         );
 
@@ -61,6 +65,8 @@ impl MixerView {
             Box::new(EditableValue::new(
                 Box::new(|tracker: &Tracker| tracker.delay_mix_level.value()),
                 Box::new(|tracker: &mut Tracker, value: f32| tracker.delay_mix_level.set(value)),
+                0.0,
+                1.0,
             )),
         );
 
@@ -69,6 +75,8 @@ impl MixerView {
             Box::new(EditableValue::new(
                 Box::new(|tracker: &Tracker| tracker.reverb_mix_level.value()),
                 Box::new(|tracker: &mut Tracker, value: f32| tracker.reverb_mix_level.set(value)),
+                0.0,
+                1.0,
             )),
         );
 
