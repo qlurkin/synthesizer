@@ -4,7 +4,7 @@ use ratatui::{
 };
 
 use crate::{
-    math::to_hex_str,
+    math::{to_hex_str_1, to_hex_str_2},
     tracker::{Tone, Tracker},
 };
 
@@ -58,7 +58,7 @@ impl Component for PhraseView {
     }
 
     fn render(&mut self, tracker: &Tracker, area: Rect, buf: &mut Buffer) {
-        let title = Span::from(format!(" Phrase {} ", to_hex_str(self.phrase_id as u8)))
+        let title = Span::from(format!(" Phrase {} ", to_hex_str_2(self.phrase_id as u8)))
             .bold()
             .red();
         let block = Block::default()
@@ -75,10 +75,10 @@ impl Component for PhraseView {
         block.render(area, buf);
 
         (0..16).for_each(|i| {
-            Line::from(vec![format!("{:x}", i).to_uppercase().gray()])
+            Line::from(vec![to_hex_str_1(i).gray()])
                 .render(Rect::new(inner.x, inner.y + i as u16, 2, 1), buf);
             self.focusmanager.render_component(
-                PhraseControl::Note(i),
+                PhraseControl::Note(i as usize),
                 tracker,
                 Rect::new(inner.x + 2, inner.y + i as u16, 3, 1),
                 buf,

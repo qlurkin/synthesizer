@@ -6,7 +6,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use crate::{math::to_hex_str, tracker::Tracker, ui::keyboard::InputMessage};
+use crate::{math::to_hex_str_2, tracker::Tracker, ui::keyboard::InputMessage};
 
 use super::{component::Component, focusmanager::FocusableComponent, message::Message};
 
@@ -46,7 +46,7 @@ impl EditableValue {
 
     pub fn get_as_hex(&self, tracker: &Tracker) -> String {
         let value = self.get_as_u8(tracker);
-        to_hex_str(value)
+        to_hex_str_2(value)
     }
 
     pub fn set(&self, tracker: &mut Tracker, value: f32) {
