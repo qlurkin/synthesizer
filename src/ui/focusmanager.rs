@@ -1,4 +1,4 @@
-use std::{collections::HashMap, f32::INFINITY, hash::Hash};
+use std::{collections::HashMap, hash::Hash};
 
 use anyhow::Result;
 use ratatui::{buffer::Buffer, layout::Rect};
@@ -63,7 +63,11 @@ impl<C: Eq + Hash + Copy> FocusManager<C> {
         let mut binding = self.components.get_mut(&self.focused);
         let component = binding.as_mut().unwrap();
 
-        let mut msgs = component.update(tracker, msg);
+        component.update(tracker, msg)
+    }
+
+    pub fn update_and_navigate(&mut self, tracker: &mut Tracker, msg: Message) -> Vec<Message> {
+        let mut msgs = self.update(tracker, msg);
         msgs.append(&mut self.process_input(msg));
         msgs
     }
@@ -76,19 +80,19 @@ impl<C: Eq + Hash + Copy> FocusManager<C> {
         match msg {
             Message::Input(InputMessage::Up) => match self.up() {
                 Ok(()) => vec![],
-                Err(()) => vec![],
+                Err(()) => vec![Message::Input(InputMessage::ShiftUp)],
             },
             Message::Input(InputMessage::Down) => match self.down() {
                 Ok(()) => vec![],
-                Err(()) => vec![],
+                Err(()) => vec![Message::Input(InputMessage::ShiftDown)],
             },
             Message::Input(InputMessage::Left) => match self.left() {
                 Ok(()) => vec![],
-                Err(()) => vec![],
+                Err(()) => vec![Message::Input(InputMessage::ShiftLeft)],
             },
             Message::Input(InputMessage::Right) => match self.right() {
                 Ok(()) => vec![],
-                Err(()) => vec![],
+                Err(()) => vec![Message::Input(InputMessage::ShiftRight)],
             },
             _ => vec![],
         }
@@ -104,7 +108,7 @@ impl<C: Eq + Hash + Copy> FocusManager<C> {
             };
 
             let mut best: Option<C> = None;
-            let mut best_dist: f32 = INFINITY;
+            let mut best_dist: f32 = f32::INFINITY;
 
             for (control, rect) in &self.rects {
                 if *control != self.focused {
@@ -145,7 +149,7 @@ impl<C: Eq + Hash + Copy> FocusManager<C> {
             };
 
             let mut best: Option<C> = None;
-            let mut best_dist: f32 = INFINITY;
+            let mut best_dist: f32 = f32::INFINITY;
 
             for (control, rect) in &self.rects {
                 if *control != self.focused {
@@ -186,7 +190,7 @@ impl<C: Eq + Hash + Copy> FocusManager<C> {
             };
 
             let mut best: Option<C> = None;
-            let mut best_dist: f32 = INFINITY;
+            let mut best_dist: f32 = f32::INFINITY;
 
             for (control, rect) in &self.rects {
                 if *control != self.focused {
@@ -227,7 +231,7 @@ impl<C: Eq + Hash + Copy> FocusManager<C> {
             };
 
             let mut best: Option<C> = None;
-            let mut best_dist: f32 = INFINITY;
+            let mut best_dist: f32 = f32::INFINITY;
 
             for (control, rect) in &self.rects {
                 if *control != self.focused {

@@ -2,6 +2,7 @@ use fundsp::hacker::*;
 
 pub const NB_TRACKS: usize = 8;
 
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub struct Tone {
     octave: i32,
     semitone: i32,

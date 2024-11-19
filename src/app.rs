@@ -39,8 +39,9 @@ fn handle_key_event(key_event: KeyEvent) -> Vec<Message> {
         KeyCode::Left => Some(Key::Left),
         KeyCode::Right => Some(Key::Right),
         KeyCode::Char('q') => Some(Key::Quit),
-        KeyCode::Char('x') => Some(Key::Edit),
-        KeyCode::Char('z') => Some(Key::Option),
+        KeyCode::Char('c') => Some(Key::Edit),
+        KeyCode::Char('x') => Some(Key::Option),
+        KeyCode::Char('z') => Some(Key::Shift),
         _ => None,
     };
 
@@ -104,6 +105,7 @@ impl App {
             PushKeyboardEnhancementFlags(
                 KeyboardEnhancementFlags::DISAMBIGUATE_ESCAPE_CODES
                     | KeyboardEnhancementFlags::REPORT_EVENT_TYPES
+                    | KeyboardEnhancementFlags::REPORT_ALL_KEYS_AS_ESCAPE_CODES
             )
         )?;
         enable_raw_mode()?;

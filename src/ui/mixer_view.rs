@@ -6,18 +6,25 @@ use ratatui::{
 use crate::{tracker::Tracker, ui::meter::Meter};
 
 use super::{
-    component::Component, editablevalue::EditableValue, focusmanager::FocusManager, Message,
+    component::Component,
+    editablevalue::EditableValue,
+    focusmanager::{FocusManager, FocusableComponent},
+    Message,
 };
 
 fn snoop_maxer(snoop: &fundsp::hacker::Snoop, samples_nb: usize) -> f32 {
-    if let Some(max) = (0..samples_nb)
+    (0..samples_nb)
         .map(|i| snoop.at(i).abs())
         .max_by(|a, b| a.total_cmp(b))
-    {
-        max
-    } else {
-        0.0
-    }
+        .unwrap_or(0.0)
+    // if let Some(max) = (0..samples_nb)
+    //     .map(|i| snoop.at(i).abs())
+    //     .max_by(|a, b| a.total_cmp(b))
+    // {
+    //     max
+    // } else {
+    //     0.0
+    // }
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
@@ -30,6 +37,7 @@ pub enum MixerControl {
 
 pub struct MixerView {
     focusmanager: FocusManager<MixerControl>,
+    focused: bool,
 }
 
 impl MixerView {
@@ -80,24 +88,34 @@ impl MixerView {
             )),
         );
 
-        Self { focusmanager }
+        Self {
+            focusmanager,
+            focused: false,
+        }
     }
 }
 
 impl Component for MixerView {
     fn update(&mut self, tracker: &mut Tracker, msg: Message) -> Vec<Message> {
-        self.focusmanager.update(tracker, msg)
+        self.focusmanager.update_and_navigate(tracker, msg)
     }
 
     fn render(&mut self, tracker: &Tracker, area: Rect, buf: &mut Buffer) {
         let title = Span::from(" Mixer ").bold().red();
         let block = Block::default()
             .title_top(Line::from(title).centered())
-            .borders(Borders::ALL)
-            .border_set(symbols::border::THICK);
+            .borders(Borders::ALL);
+
+        let block = if self.focused {
+            block.border_set(symbols::border::THICK)
+        } else {
+            block.border_set(symbols::border::PLAIN)
+        };
+
         let inner = block.inner(area);
         block.render(area, buf);
 
+        #[allow(clippy::too_many_arguments)]
         fn render_track(
             focusmanager: &mut FocusManager<MixerControl>,
             tracker: &Tracker,
@@ -162,9 +180,15 @@ impl Component for MixerView {
             MixerControl::Reverb,
             snoop_maxer(&tracker.snoop_reverb0, 2048),
             snoop_maxer(&tracker.snoop_reverb1, 2048),
-            "DE".into(),
+            "RE".into(),
             Rect::new(inner.x + 31, inner.y, 2, 6),
             buf,
         );
+    }
+}
+
+impl FocusableComponent for MixerView {
+    fn focus(&mut self, focused: bool) {
+        self.focused = focused;
     }
 }

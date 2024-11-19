@@ -42,3 +42,7 @@ pub fn _inc_hex_amp(min: f32, max: f32, amp: f32, inc: i16) -> f32 {
     }
     _hex_amp(min, max, inced as u8)
 }
+
+pub fn to_hex_str(value: u8) -> String {
+    format!("{:02x}", value).to_uppercase()
+}

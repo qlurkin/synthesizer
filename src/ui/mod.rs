@@ -1,4 +1,5 @@
 pub mod component;
+mod editablenote;
 mod editablevalue;
 mod effects_view;
 mod focusmanager;
@@ -6,12 +7,15 @@ pub mod keyboard;
 pub mod message;
 mod meter;
 mod mixer_view;
+mod phrase_view;
 
 use component::Component;
 use effects_view::EffectsView;
+use focusmanager::FocusManager;
 use keyboard::Keyboard;
 use message::Message;
 use mixer_view::MixerView;
+use phrase_view::PhraseView;
 use ratatui::{
     prelude::*,
     widgets::{Axis, Block, Borders, Chart, Dataset, GraphType},
@@ -19,29 +23,31 @@ use ratatui::{
 
 use crate::tracker::Tracker;
 
-// pub struct State {
-//     pub tracker: Tracker,
-//     pub exit: bool,
-//     pub mixer_state: MixerState,
-//     pub effect_state: EffectState,
-//     pub keyboard: HashMap<Key, bool>,
-// }
-//
+#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
+pub enum View {
+    Mixer,
+    Effects,
+    Phrase,
+}
 
 pub struct Ui {
     keyboard: Keyboard,
     pub running: bool,
-    mixer_view: MixerView,
-    effects_view: EffectsView,
+    focusmanager: FocusManager<View>,
 }
 
 impl Ui {
     pub fn new() -> Self {
+        let mut focusmanager = FocusManager::new(View::Mixer);
+
+        focusmanager.add(View::Mixer, Box::new(MixerView::new()));
+        focusmanager.add(View::Effects, Box::new(EffectsView::new()));
+        focusmanager.add(View::Phrase, Box::new(PhraseView::new()));
+
         Self {
             keyboard: Keyboard::new(),
             running: true,
-            mixer_view: MixerView::new(),
-            effects_view: EffectsView::new(),
+            focusmanager,
         }
     }
 
@@ -77,8 +83,24 @@ impl Component for Ui {
                 self.running = false;
                 Vec::new()
             }
+            Message::Input(keyboard::InputMessage::ShiftRight) => {
+                let _ = self.focusmanager.right();
+                Vec::new()
+            }
+            Message::Input(keyboard::InputMessage::ShiftLeft) => {
+                let _ = self.focusmanager.left();
+                Vec::new()
+            }
+            Message::Input(keyboard::InputMessage::ShiftUp) => {
+                let _ = self.focusmanager.up();
+                Vec::new()
+            }
+            Message::Input(keyboard::InputMessage::ShiftDown) => {
+                let _ = self.focusmanager.down();
+                Vec::new()
+            }
             _ => {
-                let mut msgs = self.mixer_view.update(tracker, msg);
+                let mut msgs = self.focusmanager.update(tracker, msg);
                 msgs.append(&mut self.keyboard.update(tracker, msg));
                 msgs
             }
@@ -139,11 +161,21 @@ impl Component for Ui {
 
         let layout = Layout::default()
             .direction(Direction::Horizontal)
-            .constraints(vec![Constraint::Percentage(20), Constraint::Percentage(20)])
+            .constraints(vec![
+                Constraint::Percentage(20),
+                Constraint::Percentage(20),
+                Constraint::Percentage(20),
+            ])
             .split(layout[1]);
 
-        self.mixer_view.render(tracker, layout[0], buf);
-        self.effects_view.render(tracker, layout[1], buf);
+        // self.mixer_view.render(tracker, layout[0], buf);
+        // self.effects_view.render(tracker, layout[1], buf);
+        self.focusmanager
+            .render_component(View::Mixer, tracker, layout[0], buf);
+        self.focusmanager
+            .render_component(View::Effects, tracker, layout[1], buf);
+        self.focusmanager
+            .render_component(View::Phrase, tracker, layout[2], buf);
     }
 }
 

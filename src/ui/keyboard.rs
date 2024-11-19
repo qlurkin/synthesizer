@@ -12,6 +12,7 @@ pub enum Key {
     Edit,
     Play,
     Quit,
+    Shift,
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
@@ -21,6 +22,10 @@ pub enum InputMessage {
     Down,
     Left,
     Right,
+    ShiftUp,
+    ShiftDown,
+    ShiftLeft,
+    ShiftRight,
     EditUp,
     EditDown,
     EditLeft,
@@ -66,6 +71,18 @@ impl Component for Keyboard {
                                 Key::Down => vec![Message::Input(InputMessage::EditDown)],
                                 Key::Left => vec![Message::Input(InputMessage::EditLeft)],
                                 Key::Right => vec![Message::Input(InputMessage::EditRight)],
+                                _ => vec![],
+                            };
+                        }
+                    }
+
+                    if let Some(down) = self.keys.get(&Key::Shift) {
+                        if *down {
+                            return match key {
+                                Key::Up => vec![Message::Input(InputMessage::ShiftUp)],
+                                Key::Down => vec![Message::Input(InputMessage::ShiftDown)],
+                                Key::Left => vec![Message::Input(InputMessage::ShiftLeft)],
+                                Key::Right => vec![Message::Input(InputMessage::ShiftRight)],
                                 _ => vec![],
                             };
                         }

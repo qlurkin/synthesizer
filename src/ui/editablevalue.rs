@@ -6,7 +6,7 @@ use ratatui::{
     widgets::Widget,
 };
 
-use crate::{tracker::Tracker, ui::keyboard::InputMessage};
+use crate::{math::to_hex_str, tracker::Tracker, ui::keyboard::InputMessage};
 
 use super::{component::Component, focusmanager::FocusableComponent, message::Message};
 
@@ -36,19 +36,17 @@ impl EditableValue {
 
     pub fn get(&self, tracker: &Tracker) -> f32 {
         let value = (self.get_callback)(tracker);
-        let value = value.clamp(self.min, self.max);
-        value
+        value.clamp(self.min, self.max)
     }
 
     pub fn get_as_u8(&self, tracker: &Tracker) -> u8 {
         let value = self.get(tracker);
-        let value = (255.0 * (value - self.min) / (self.max - self.min)).round() as u8;
-        value
+        (255.0 * (value - self.min) / (self.max - self.min)).round() as u8
     }
 
     pub fn get_as_hex(&self, tracker: &Tracker) -> String {
         let value = self.get_as_u8(tracker);
-        format!("{:02x}", value).to_uppercase()
+        to_hex_str(value)
     }
 
     pub fn set(&self, tracker: &mut Tracker, value: f32) {
@@ -91,6 +89,8 @@ impl Component for EditableValue {
         let mut line = Line::raw(self.get_as_hex(tracker));
         if self.focused {
             line = line.style(Style::default().fg(Color::Black).bg(Color::White));
+        } else {
+            line = line.style(Style::default().fg(Color::White));
         }
         line.render(area, buf);
     }

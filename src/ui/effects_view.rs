@@ -1,7 +1,10 @@
 use crate::tracker::Tracker;
 
 use super::{
-    component::Component, editablevalue::EditableValue, focusmanager::FocusManager, Message,
+    component::Component,
+    editablevalue::EditableValue,
+    focusmanager::{FocusManager, FocusableComponent},
+    Message,
 };
 use ratatui::{
     prelude::*,
@@ -26,6 +29,7 @@ pub enum EffectControl {
 
 pub struct EffectsView {
     focusmanager: FocusManager<EffectControl>,
+    focused: bool,
 }
 
 impl EffectsView {
@@ -186,35 +190,30 @@ impl EffectsView {
             )),
         );
 
-        Self { focusmanager }
+        Self {
+            focusmanager,
+            focused: false,
+        }
     }
 }
 
 impl Component for EffectsView {
     fn update(&mut self, tracker: &mut Tracker, msg: Message) -> Vec<Message> {
-        self.focusmanager.update(tracker, msg)
+        self.focusmanager.update_and_navigate(tracker, msg)
     }
 
     fn render(&mut self, tracker: &Tracker, area: Rect, buf: &mut Buffer) {
         let title = Line::from(" Effects ".bold().red()).centered();
-        let block = Block::default()
-            .title_top(title)
-            .borders(Borders::ALL)
-            .border_set(symbols::border::PLAIN);
+        let block = Block::default().title_top(title).borders(Borders::ALL);
+
+        let block = if self.focused {
+            block.border_set(symbols::border::THICK)
+        } else {
+            block.border_set(symbols::border::PLAIN)
+        };
+
         let inner = block.inner(area);
         block.render(area, buf);
-
-        fn render_control(
-            focusmanager: &mut FocusManager<EffectControl>,
-            control: EffectControl,
-            tracker: &Tracker,
-            label: String,
-            area: Rect,
-            buf: &mut Buffer,
-        ) {
-            Line::from(vec![label.gray()]).render(area, buf);
-            focusmanager.render_component(control, tracker, area, buf);
-        }
 
         Line::from(vec!["Chorus".red()]).render(Rect::new(inner.x, inner.y, 8, 1), buf);
 
@@ -326,5 +325,11 @@ impl Component for EffectsView {
             Rect::new(inner.x + 23, inner.y + 13, 2, 1),
             buf,
         );
+    }
+}
+
+impl FocusableComponent for EffectsView {
+    fn focus(&mut self, focused: bool) {
+        self.focused = focused;
     }
 }
