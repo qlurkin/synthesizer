@@ -30,13 +30,19 @@ impl PhraseView {
     pub fn new() -> Self {
         let mut focusmanager = FocusManager::new(PhraseControl::Note(0));
 
-        focusmanager.add(
-            PhraseControl::Note(0),
-            Box::new(EditableNote::new(
-                Box::new(|tracker: &Tracker| tracker.tone),
-                Box::new(|tracker: &mut Tracker, value: Tone| tracker.tone = value),
-            )),
-        );
+        (0..16).for_each(|i| {
+            focusmanager.add(
+                PhraseControl::Note(i),
+                Box::new(EditableNote::new(
+                    Box::new(|tracker: &Tracker| Some(tracker.tone)),
+                    Box::new(|tracker: &mut Tracker, value: Option<Tone>| {
+                        if let Some(tone) = value {
+                            tracker.tone = tone
+                        }
+                    }),
+                )),
+            )
+        });
 
         Self {
             focusmanager,
@@ -68,12 +74,16 @@ impl Component for PhraseView {
         let inner = block.inner(area);
         block.render(area, buf);
 
-        self.focusmanager.render_component(
-            PhraseControl::Note(0),
-            tracker,
-            Rect::new(inner.x, inner.y, 3, 1),
-            buf,
-        );
+        (0..16).for_each(|i| {
+            Line::from(vec![format!("{:x}", i).to_uppercase().gray()])
+                .render(Rect::new(inner.x, inner.y + i as u16, 2, 1), buf);
+            self.focusmanager.render_component(
+                PhraseControl::Note(i),
+                tracker,
+                Rect::new(inner.x + 2, inner.y + i as u16, 3, 1),
+                buf,
+            );
+        });
     }
 }
 
