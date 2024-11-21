@@ -24,6 +24,7 @@ impl FrameContext {
         };
 
         while !ctx.messages.is_empty() {
+            ctx.draw_calls.clear();
             fun(state, frame.area(), &mut ctx);
             ctx.messages.clear();
             std::mem::swap(&mut ctx.messages, &mut ctx.next_messages);
