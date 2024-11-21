@@ -1,12 +1,13 @@
 use crate::{
     event::{Event, EventHandler},
-    tracker::Tracker,
-    ui::{
-        component::Component,
-        keyboard::{Key, RawInputMessage},
+    imui::{
+        frame_context::FrameContext,
+        keyboard::{Key, Keyboard, RawInputMessage},
         message::Message,
-        Ui,
+        render_app::render_app,
+        state::State,
     },
+    tracker::Tracker,
 };
 use anyhow::Result;
 use cpal::{
@@ -28,7 +29,6 @@ use ratatui::prelude::*;
 
 pub struct App {
     pub events: EventHandler,
-    ui: Ui,
 }
 
 fn handle_key_event(key_event: KeyEvent) -> Vec<Message> {
@@ -68,7 +68,6 @@ impl App {
     pub fn new() -> Self {
         Self {
             events: EventHandler::new(16),
-            ui: Ui::new(),
         }
     }
 
@@ -81,7 +80,12 @@ impl App {
         let sample_rate = config.sample_rate.0 as f64;
         let channels = config.channels as usize;
 
-        let (mut tracker, mut backend) = Tracker::new(sample_rate);
+        let (tracker, mut backend) = Tracker::new(sample_rate);
+
+        let mut state = State {
+            keyboard: Keyboard::new(),
+            tracker,
+        };
 
         let mut next_value = move || backend.get_stereo();
 
@@ -110,22 +114,34 @@ impl App {
         )?;
         enable_raw_mode()?;
         let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
-        while self.ui.running {
-            let mut msgs = match self.events.next()? {
+        let mut messages: Vec<Message> = Vec::new();
+        let mut running = true;
+        while running {
+            match self.events.next()? {
                 Event::Tick => {
-                    terminal.draw(|frame| self.ui.render_frame(&tracker, frame))?;
+                    terminal.draw(|frame| {
+                        messages.push(Message::Refresh);
+                        let mut msgs: Vec<Message> = Vec::new();
+                        std::mem::swap(&mut msgs, &mut messages);
+                        FrameContext::render(frame, &mut state, msgs, render_app);
+                    })?;
                     vec![Message::Refresh]
                 }
-                Event::Key(key_event) => handle_key_event(key_event),
+                Event::Key(key_event) => {
+                    let mut msgs = handle_key_event(key_event);
+                    messages.append(&mut msgs);
+                    messages.retain(|msg| match msg {
+                        Message::RawInput(RawInputMessage::Release(Key::Quit)) => {
+                            running = false;
+                            false
+                        }
+                        _ => true,
+                    });
+                    vec![]
+                }
                 Event::Mouse(_) => vec![],
                 Event::Resize(_, _) => vec![],
             };
-            while !msgs.is_empty() {
-                msgs = msgs
-                    .into_iter()
-                    .flat_map(|msg| self.ui.update(&mut tracker, msg).into_iter())
-                    .collect();
-            }
         }
         execute!(stdout(), LeaveAlternateScreen, PopKeyboardEnhancementFlags)?;
         disable_raw_mode()?;
