@@ -5,7 +5,7 @@ use ratatui::{
 
 use crate::{
     math::{to_hex_str_1, to_hex_str_2},
-    tracker::{Tone, Tracker},
+    tracker::{Phrase, Step, Tone, Tracker},
 };
 
 use super::{
@@ -27,17 +27,32 @@ pub struct PhraseView {
 }
 
 impl PhraseView {
-    pub fn new() -> Self {
+    pub fn new(phrase_id: usize) -> Self {
         let mut focusmanager = FocusManager::new(PhraseControl::Note(0));
 
         (0..16).for_each(|i| {
             focusmanager.add(
                 PhraseControl::Note(i),
                 Box::new(EditableNote::new(
-                    Box::new(|tracker: &Tracker| Some(tracker.tone)),
-                    Box::new(|tracker: &mut Tracker, value: Option<Tone>| {
+                    Box::new(move |tracker: &Tracker| {
+                        Some(tracker.phrases[phrase_id].as_ref()?.steps[i].as_ref()?.tone)
+                    }),
+                    Box::new(move |tracker: &mut Tracker, value: Option<Tone>| {
                         if let Some(tone) = value {
-                            tracker.tone = tone
+                            if tracker.phrases[phrase_id].is_none() {
+                                tracker.phrases[phrase_id] = Some(Phrase::new());
+                            }
+                            if tracker.phrases[phrase_id].as_mut().unwrap().steps[i].is_none() {
+                                tracker.phrases[phrase_id].as_mut().unwrap().steps[i] = Some(Step {
+                                    tone,
+                                    instrument: 0,
+                                    velocity: 64,
+                                })
+                            }
+                            tracker.phrases[phrase_id].as_mut().unwrap().steps[i]
+                                .as_mut()
+                                .unwrap()
+                                .tone = tone;
                         }
                     }),
                 )),
@@ -47,7 +62,7 @@ impl PhraseView {
         Self {
             focusmanager,
             focused: false,
-            phrase_id: 0,
+            phrase_id,
         }
     }
 }

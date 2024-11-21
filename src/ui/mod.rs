@@ -42,7 +42,7 @@ impl Ui {
 
         focusmanager.add(View::Mixer, Box::new(MixerView::new()));
         focusmanager.add(View::Effects, Box::new(EffectsView::new()));
-        focusmanager.add(View::Phrase, Box::new(PhraseView::new()));
+        focusmanager.add(View::Phrase, Box::new(PhraseView::new(1)));
 
         Self {
             keyboard: Keyboard::new(),
