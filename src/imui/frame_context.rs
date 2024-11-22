@@ -2,7 +2,7 @@ use ratatui::{buffer::Buffer, layout::Rect, Frame};
 
 use super::{message::Message, state::State};
 
-type DrawCall = dyn FnOnce(&mut Buffer);
+type DrawCall = dyn FnOnce(&State, &mut Buffer);
 
 pub struct FrameContext {
     messages: Vec<Message>,
@@ -30,10 +30,10 @@ impl FrameContext {
             std::mem::swap(&mut ctx.messages, &mut ctx.next_messages);
         }
 
-        ctx.draw(frame.buffer_mut());
+        ctx.draw(state, frame.buffer_mut());
     }
 
-    pub fn add(&mut self, draw_call: impl FnOnce(&mut Buffer) + 'static) {
+    pub fn add(&mut self, draw_call: impl FnOnce(&State, &mut Buffer) + 'static) {
         self.draw_calls.push(Box::new(draw_call));
     }
 
@@ -43,9 +43,9 @@ impl FrameContext {
         self.next_messages.append(&mut msgs);
     }
 
-    fn draw(&mut self, buf: &mut Buffer) {
+    fn draw(&mut self, state: &State, buf: &mut Buffer) {
         while let Some(call) = self.draw_calls.pop() {
-            (call)(buf);
+            (call)(state, buf);
         }
     }
 }

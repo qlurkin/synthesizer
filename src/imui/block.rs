@@ -25,7 +25,7 @@ pub fn block<T: Into<Line<'static>>, S: Into<Line<'static>>>(
 
     let inner = bl.inner(area);
 
-    ctx.add(move |buf| {
+    ctx.add(move |_state, buf| {
         bl.render(area, buf);
     });
 
