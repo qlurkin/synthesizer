@@ -1,4 +1,4 @@
-use ratatui::layout::Rect;
+use ratatui::prelude::*;
 
 use super::{
     block::block, editable_note::editable_note, frame_context::FrameContext,
@@ -16,7 +16,20 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
         false
     });
 
-    let inner = block("TermTracker", area, ctx);
+    let title = Span::from(" TermTracker ").bold().red();
+    let instructions = Line::from(vec![
+        " Play ".into(),
+        "<Space>".blue().bold(),
+        " Edit ".into(),
+        "<C>".blue().bold(),
+        " Option ".into(),
+        "<X>".blue().bold(),
+        " Shift ".into(),
+        "<Z>".blue().bold(),
+        " Quit ".into(),
+        "<Q> ".blue().bold(),
+    ]);
+    let inner = block(title, Some(instructions), area, ctx);
 
     editable_note(&mut state.tracker.tone, inner, ctx);
 }

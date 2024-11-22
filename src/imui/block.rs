@@ -5,11 +5,21 @@ use ratatui::{
 
 use super::frame_context::FrameContext;
 
-pub fn block(title: &str, area: Rect, ctx: &mut FrameContext) -> Rect {
-    let title = Span::from(format!(" {} ", title)).bold().red();
-    let bl = Block::default()
-        .title_top(Line::from(title).centered())
+pub fn block<T: Into<Line<'static>>, S: Into<Line<'static>>>(
+    title: T,
+    bottom: Option<S>,
+    area: Rect,
+    ctx: &mut FrameContext,
+) -> Rect {
+    let title = title.into();
+    let mut bl = Block::default()
+        .title_top(title.centered())
         .borders(Borders::ALL);
+
+    if let Some(bottom) = bottom {
+        let bottom = bottom.into();
+        bl = bl.title_bottom(bottom.centered())
+    }
 
     let bl = bl.border_set(symbols::border::PLAIN);
 
