@@ -1,17 +1,35 @@
 use ratatui::prelude::*;
 
 use super::{
-    block::block, editable_note::editable_note, frame_context::FrameContext,
-    keyboard::process_raw_input, message::Message, state::State,
+    block::block, editable_note::editable_note, frame_context::FrameContext, graph::graph,
+    keyboard::process_raw_input, message::Message, mixer_view::mixer_view, state::State,
 };
 
 pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     process_raw_input(&mut state.keyboard, ctx);
 
     ctx.process_messages(|msg, _msgs| {
-        if let Message::Input(super::keyboard::InputMessage::Play) = msg {
-            state.tracker.play_note();
-            return true;
+        match msg {
+            Message::Input(super::keyboard::InputMessage::Play) => {
+                state.tracker.play_note();
+                return true;
+            }
+            Message::Refresh => {
+                for i in 0..8 {
+                    state.tracker.tracks[i].snoop0.update();
+                    state.tracker.tracks[i].snoop1.update();
+                }
+                state.tracker.snoop_chorus0.update();
+                state.tracker.snoop_chorus1.update();
+                state.tracker.snoop_delay0.update();
+                state.tracker.snoop_delay1.update();
+                state.tracker.snoop_reverb0.update();
+                state.tracker.snoop_reverb1.update();
+                state.tracker.snoop_out0.update();
+                state.tracker.snoop_out1.update();
+                return false;
+            }
+            _ => (),
         }
         false
     });
@@ -31,5 +49,21 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     ]);
     let inner = block(title, Some(instructions), area, ctx);
 
-    editable_note(&mut state.tracker.tone, inner, ctx);
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints(vec![Constraint::Percentage(20), Constraint::Percentage(80)])
+        .split(inner);
+
+    graph(state, layout[0], ctx);
+
+    let layout = Layout::default()
+        .direction(Direction::Horizontal)
+        .constraints(vec![
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+            Constraint::Percentage(20),
+        ])
+        .split(layout[1]);
+
+    mixer_view(state, layout[0], ctx);
 }
