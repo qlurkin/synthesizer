@@ -1,7 +1,11 @@
 mod block;
 mod editable_note;
+mod editable_value;
+mod focus_calculator;
 pub mod frame_context;
+mod graph;
 pub mod keyboard;
 pub mod message;
+mod mixer_view;
 pub mod render_app;
 pub mod state;
