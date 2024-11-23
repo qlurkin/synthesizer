@@ -13,8 +13,10 @@ pub fn editable_note(tone: &mut Tone, area: Rect, ctx: &mut FrameContext) {
         _ => false,
     });
 
-    ctx.add(move |state, buf| {
-        let line = Line::raw(state.tracker.tone.get_string());
+    let tone = *tone;
+
+    ctx.add(move |_state, buf| {
+        let line = Line::raw(tone.get_string());
         line.style(Style::default().fg(Color::White))
             .render(area, buf);
     })
