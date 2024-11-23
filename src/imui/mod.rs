@@ -9,3 +9,4 @@ pub mod message;
 mod mixer_view;
 pub mod render_app;
 pub mod state;
+mod vertical_meter;
