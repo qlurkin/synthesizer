@@ -5,6 +5,7 @@ mod focus_calculator;
 pub mod frame_context;
 mod graph;
 pub mod keyboard;
+mod label;
 pub mod message;
 mod mixer_view;
 pub mod render_app;
