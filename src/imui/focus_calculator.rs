@@ -4,6 +4,8 @@ use std::{collections::HashMap, hash::Hash};
 
 use ratatui::layout::Rect;
 
+use super::{frame_context::FrameContext, keyboard::InputMessage, message::Message};
+
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
 pub enum Direction {
     Up,
@@ -102,6 +104,46 @@ impl FocusCalculator {
             Ok(best)
         } else {
             Err(())
+        }
+    }
+}
+
+pub fn view_process_focus_message(
+    focused: &mut usize,
+    focus_calculator: &FocusCalculator,
+    ctx: &mut FrameContext,
+) {
+    let mut direction = Direction::None;
+
+    ctx.process_messages(|msg, _msgs| match msg {
+        Message::Input(InputMessage::Right) => {
+            direction = Direction::Right;
+            true
+        }
+        Message::Input(InputMessage::Left) => {
+            direction = Direction::Left;
+            true
+        }
+        Message::Input(InputMessage::Up) => {
+            direction = Direction::Up;
+            true
+        }
+        Message::Input(InputMessage::Down) => {
+            direction = Direction::Down;
+            true
+        }
+        _ => false,
+    });
+
+    if let Ok(focus_id) = focus_calculator.update(direction) {
+        *focused = focus_id;
+    } else {
+        match direction {
+            Direction::Up => ctx.send(Message::Input(InputMessage::ShiftUp)),
+            Direction::Left => ctx.send(Message::Input(InputMessage::ShiftLeft)),
+            Direction::Down => ctx.send(Message::Input(InputMessage::ShiftDown)),
+            Direction::Right => ctx.send(Message::Input(InputMessage::ShiftRight)),
+            Direction::None => {}
         }
     }
 }

@@ -2,7 +2,7 @@ use ratatui::prelude::*;
 
 use crate::imui::{
     editable_value::editable_value,
-    focus_calculator::{Direction, FocusCalculator},
+    focus_calculator::{view_process_focus_message, Direction, FocusCalculator},
     keyboard::InputMessage,
     label::label,
     message::Message,
@@ -95,37 +95,5 @@ pub fn mixer_view(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     );
     state.tracker.reverb_mix_level.set(value);
 
-    let mut direction = Direction::None;
-
-    ctx.process_messages(|msg, _msgs| match msg {
-        Message::Input(InputMessage::Right) => {
-            direction = Direction::Right;
-            true
-        }
-        Message::Input(InputMessage::Left) => {
-            direction = Direction::Left;
-            true
-        }
-        Message::Input(InputMessage::Up) => {
-            direction = Direction::Up;
-            true
-        }
-        Message::Input(InputMessage::Down) => {
-            direction = Direction::Down;
-            true
-        }
-        _ => false,
-    });
-
-    if let Ok(focused) = focus_calculator.update(direction) {
-        state.mixer_focused = focused;
-    } else {
-        match direction {
-            Direction::Up => ctx.send(Message::Input(InputMessage::ShiftUp)),
-            Direction::Left => ctx.send(Message::Input(InputMessage::ShiftLeft)),
-            Direction::Down => ctx.send(Message::Input(InputMessage::ShiftDown)),
-            Direction::Right => ctx.send(Message::Input(InputMessage::ShiftRight)),
-            Direction::None => {}
-        }
-    }
+    view_process_focus_message(&mut state.mixer_focused, &focus_calculator, ctx);
 }
