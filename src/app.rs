@@ -82,10 +82,7 @@ impl App {
 
         let (tracker, mut backend) = Tracker::new(sample_rate);
 
-        let mut state = State {
-            keyboard: Keyboard::new(),
-            tracker,
-        };
+        let mut state = State::new(tracker);
 
         let mut next_value = move || backend.get_stereo();
 
@@ -125,7 +122,6 @@ impl App {
                         std::mem::swap(&mut msgs, &mut messages);
                         FrameContext::render(frame, &mut state, msgs, render_app);
                     })?;
-                    vec![Message::Refresh]
                 }
                 Event::Key(key_event) => {
                     let mut msgs = handle_key_event(key_event);
@@ -137,10 +133,9 @@ impl App {
                         }
                         _ => true,
                     });
-                    vec![]
                 }
-                Event::Mouse(_) => vec![],
-                Event::Resize(_, _) => vec![],
+                Event::Mouse(_) => {}
+                Event::Resize(_, _) => {}
             };
         }
         execute!(stdout(), LeaveAlternateScreen, PopKeyboardEnhancementFlags)?;

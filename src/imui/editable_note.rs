@@ -6,7 +6,7 @@ use super::{frame_context::FrameContext, keyboard::InputMessage, message::Messag
 
 pub fn editable_note(tone: &mut Tone, area: Rect, ctx: &mut FrameContext) {
     ctx.process_messages(|msg, _msgs| match msg {
-        Message::Input(InputMessage::Up) => {
+        Message::Input(InputMessage::EditUp) => {
             *tone = tone.up(1);
             true
         }

@@ -10,6 +10,7 @@ pub enum Direction {
     Down,
     Left,
     Right,
+    None,
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
@@ -48,63 +49,59 @@ fn distance(from: Point, to: Point, direction: Direction) -> f32 {
                 f32::INFINITY
             }
         }
+        Direction::None => f32::INFINITY,
     }
 }
 
-struct FocusCalculator<C: Eq + Hash + Copy> {
-    rects: HashMap<C, Rect>,
+pub struct FocusCalculator {
+    rects: Vec<Rect>,
+    focused: usize,
 }
 
-impl<C: Eq + Hash + Copy> FocusCalculator<C> {
-    pub fn new() -> Self {
+impl FocusCalculator {
+    pub fn new(focused: usize) -> Self {
         Self {
-            rects: HashMap::new(),
+            rects: Vec::new(),
+            focused,
         }
     }
 
-    pub fn add(&mut self, control: C, rect: Rect) -> Rect {
-        self.rects
-            .entry(control)
-            .and_modify(|r| *r = rect)
-            .or_insert(rect);
-        rect
+    pub fn add(&mut self, rect: Rect) -> (bool, Rect) {
+        let id = self.rects.len();
+        self.rects.push(rect);
+        (self.focused == id, rect)
     }
 
-    pub fn update(&self, focused: &mut C, direction: Direction) -> Result<(), ()> {
-        let may_be_rect = self.rects.get(focused);
+    pub fn update(&self, direction: Direction) -> Result<usize, ()> {
+        let rect = self.rects[self.focused];
 
-        if let Some(rect) = may_be_rect {
-            let focused_center = Point {
-                x: rect.x + rect.width / 2,
-                y: rect.y + rect.height / 2,
-            };
+        let focused_center = Point {
+            x: rect.x + rect.width / 2,
+            y: rect.y + rect.height / 2,
+        };
 
-            let mut best: Option<C> = None;
-            let mut best_dist: f32 = f32::INFINITY;
+        let mut best = self.focused;
+        let mut best_dist: f32 = f32::INFINITY;
 
-            for (control, rect) in &self.rects {
-                if control != focused {
-                    let rect_center = Point {
-                        x: rect.x + rect.width / 2,
-                        y: rect.y + rect.height / 2,
-                    };
-                    let dist = distance(focused_center, rect_center, direction);
+        for (control, rect) in self.rects.iter().enumerate() {
+            if control != self.focused {
+                let rect_center = Point {
+                    x: rect.x + rect.width / 2,
+                    y: rect.y + rect.height / 2,
+                };
+                let dist = distance(focused_center, rect_center, direction);
 
-                    if dist < best_dist {
-                        best_dist = dist;
-                        best = Some(*control);
-                    }
+                if dist < best_dist {
+                    best_dist = dist;
+                    best = control;
                 }
             }
+        }
 
-            if let Some(control) = best {
-                *focused = control;
-                Ok(())
-            } else {
-                Err(())
-            }
+        if best != self.focused {
+            Ok(best)
         } else {
-            Ok(())
+            Err(())
         }
     }
 }

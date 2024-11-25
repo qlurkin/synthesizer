@@ -1,6 +1,13 @@
 use ratatui::prelude::*;
 
-use crate::imui::{editable_value::editable_value, label::label, vertical_meter::vertical_meter};
+use crate::imui::{
+    editable_value::editable_value,
+    focus_calculator::{Direction, FocusCalculator},
+    keyboard::InputMessage,
+    label::label,
+    message::Message,
+    vertical_meter::vertical_meter,
+};
 
 use super::{block::block, frame_context::FrameContext, state::State};
 
@@ -14,12 +21,15 @@ fn snoop_maxer(snoop: &fundsp::hacker::Snoop, samples_nb: usize) -> f32 {
 pub fn mixer_view(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     let inner = block(" Mixer ".red().bold(), None as Option<&str>, area, ctx);
 
+    let mut focus_calculator = FocusCalculator::new(state.mixer_focused);
+
     fn render_track(
         value: &mut f32,
         meter0: f32,
         meter1: f32,
         txt: &str,
         area: Rect,
+        focus_calculator: &mut FocusCalculator,
         ctx: &mut FrameContext,
     ) {
         vertical_meter(meter0, Rect::new(area.x, area.y, 1, area.height - 2), ctx);
@@ -29,13 +39,8 @@ pub fn mixer_view(state: &mut State, area: Rect, ctx: &mut FrameContext) {
             ctx,
         );
 
-        editable_value(
-            value,
-            0.0,
-            1.0,
-            Rect::new(area.x, area.bottom() - 2, 2, 1),
-            ctx,
-        );
+        let (focused, rect) = focus_calculator.add(Rect::new(area.x, area.bottom() - 2, 2, 1));
+        editable_value(value, 0.0, 1.0, focused, rect, ctx);
 
         label(txt, Rect::new(area.x, area.bottom() - 1, 2, 1), ctx);
     }
@@ -48,6 +53,7 @@ pub fn mixer_view(state: &mut State, area: Rect, ctx: &mut FrameContext) {
             snoop_maxer(&state.tracker.tracks[i].snoop1, 2048),
             &format!("T{}", i),
             Rect::new(inner.x + 1 + i as u16 * 3, inner.y, 2, 6),
+            &mut focus_calculator,
             ctx,
         );
         state.tracker.tracks[i].mix_level.set(value);
@@ -60,6 +66,7 @@ pub fn mixer_view(state: &mut State, area: Rect, ctx: &mut FrameContext) {
         snoop_maxer(&state.tracker.snoop_chorus1, 2048),
         "CH",
         Rect::new(inner.x + 25, inner.y, 2, 6),
+        &mut focus_calculator,
         ctx,
     );
     state.tracker.chorus_mix_level.set(value);
@@ -71,6 +78,7 @@ pub fn mixer_view(state: &mut State, area: Rect, ctx: &mut FrameContext) {
         snoop_maxer(&state.tracker.snoop_delay1, 2048),
         "DE",
         Rect::new(inner.x + 28, inner.y, 2, 6),
+        &mut focus_calculator,
         ctx,
     );
     state.tracker.delay_mix_level.set(value);
@@ -82,9 +90,26 @@ pub fn mixer_view(state: &mut State, area: Rect, ctx: &mut FrameContext) {
         snoop_maxer(&state.tracker.snoop_reverb1, 2048),
         "RE",
         Rect::new(inner.x + 31, inner.y, 2, 6),
+        &mut focus_calculator,
         ctx,
     );
     state.tracker.reverb_mix_level.set(value);
 
-    // editable_note(&mut state.tracker.tone, inner, ctx);
+    let mut new_focused: usize = state.mixer_focused;
+
+    ctx.process_messages(|msg, _msgs| {
+        let direction = match msg {
+            Message::Input(InputMessage::Right) => Direction::Right,
+            Message::Input(InputMessage::Left) => Direction::Left,
+            Message::Input(InputMessage::Up) => Direction::Up,
+            Message::Input(InputMessage::Down) => Direction::Down,
+            _ => Direction::None,
+        };
+        if let Ok(focused) = focus_calculator.update(direction) {
+            new_focused = focused;
+        }
+        direction != Direction::None
+    });
+
+    state.mixer_focused = new_focused;
 }
