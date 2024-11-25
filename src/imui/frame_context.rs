@@ -33,6 +33,10 @@ impl FrameContext {
         ctx.draw(frame.buffer_mut());
     }
 
+    pub fn send(&mut self, msg: Message) {
+        self.next_messages.push(msg);
+    }
+
     pub fn add(&mut self, draw_call: impl FnOnce(&mut Buffer) + 'static) {
         self.draw_calls.push(Box::new(draw_call));
     }

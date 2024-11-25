@@ -95,21 +95,37 @@ pub fn mixer_view(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     );
     state.tracker.reverb_mix_level.set(value);
 
-    let mut new_focused: usize = state.mixer_focused;
+    let mut direction = Direction::None;
 
-    ctx.process_messages(|msg, _msgs| {
-        let direction = match msg {
-            Message::Input(InputMessage::Right) => Direction::Right,
-            Message::Input(InputMessage::Left) => Direction::Left,
-            Message::Input(InputMessage::Up) => Direction::Up,
-            Message::Input(InputMessage::Down) => Direction::Down,
-            _ => Direction::None,
-        };
-        if let Ok(focused) = focus_calculator.update(direction) {
-            new_focused = focused;
+    ctx.process_messages(|msg, _msgs| match msg {
+        Message::Input(InputMessage::Right) => {
+            direction = Direction::Right;
+            true
         }
-        direction != Direction::None
+        Message::Input(InputMessage::Left) => {
+            direction = Direction::Left;
+            true
+        }
+        Message::Input(InputMessage::Up) => {
+            direction = Direction::Up;
+            true
+        }
+        Message::Input(InputMessage::Down) => {
+            direction = Direction::Down;
+            true
+        }
+        _ => false,
     });
 
-    state.mixer_focused = new_focused;
+    if let Ok(focused) = focus_calculator.update(direction) {
+        state.mixer_focused = focused;
+    } else {
+        match direction {
+            Direction::Up => ctx.send(Message::Input(InputMessage::ShiftUp)),
+            Direction::Left => ctx.send(Message::Input(InputMessage::ShiftLeft)),
+            Direction::Down => ctx.send(Message::Input(InputMessage::ShiftDown)),
+            Direction::Right => ctx.send(Message::Input(InputMessage::ShiftRight)),
+            Direction::None => {}
+        }
+    }
 }
