@@ -72,8 +72,11 @@ pub fn process_raw_input(keyboard: &mut Keyboard, ctx: &mut FrameContext) {
                                 Key::Right => msgs.push(Message::Input(InputMessage::EditRight)),
                                 _ => {}
                             };
+                            return true;
                         }
-                    } else if let Some(down) = keyboard.keys.get(&Key::Shift) {
+                    }
+
+                    if let Some(down) = keyboard.keys.get(&Key::Shift) {
                         if *down {
                             match key {
                                 Key::Up => msgs.push(Message::Input(InputMessage::ShiftUp)),
@@ -82,17 +85,18 @@ pub fn process_raw_input(keyboard: &mut Keyboard, ctx: &mut FrameContext) {
                                 Key::Right => msgs.push(Message::Input(InputMessage::ShiftRight)),
                                 _ => {}
                             };
+                            return true;
                         }
-                    } else {
-                        match key {
-                            Key::Up => msgs.push(Message::Input(InputMessage::Up)),
-                            Key::Down => msgs.push(Message::Input(InputMessage::Down)),
-                            Key::Left => msgs.push(Message::Input(InputMessage::Left)),
-                            Key::Right => msgs.push(Message::Input(InputMessage::Right)),
-                            Key::Play => msgs.push(Message::Input(InputMessage::Play)),
-                            _ => {}
-                        }
-                    };
+                    }
+
+                    match key {
+                        Key::Up => msgs.push(Message::Input(InputMessage::Up)),
+                        Key::Down => msgs.push(Message::Input(InputMessage::Down)),
+                        Key::Left => msgs.push(Message::Input(InputMessage::Left)),
+                        Key::Right => msgs.push(Message::Input(InputMessage::Right)),
+                        Key::Play => msgs.push(Message::Input(InputMessage::Play)),
+                        _ => {}
+                    }
                 }
             };
             true
