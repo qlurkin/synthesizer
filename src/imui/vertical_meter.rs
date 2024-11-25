@@ -2,7 +2,7 @@ use super::frame_context::FrameContext;
 use ratatui::prelude::*;
 
 pub fn vertical_meter(ratio: f32, area: Rect, ctx: &mut FrameContext) {
-    ctx.add(move |_tracker, buf| {
+    ctx.add(move |buf| {
         let bar_set = symbols::bar::NINE_LEVELS;
         let symbols = [
             bar_set.empty,

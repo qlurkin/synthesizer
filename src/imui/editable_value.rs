@@ -27,7 +27,7 @@ pub fn editable_value(value: &mut f32, min: f32, max: f32, area: Rect, ctx: &mut
 
     let hex = to_hex_str_2(byte);
 
-    ctx.add(move |_tracker, buf| {
+    ctx.add(move |buf| {
         let focused = false;
 
         let mut line = Line::raw(hex);

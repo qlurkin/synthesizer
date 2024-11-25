@@ -5,16 +5,16 @@ use ratatui::{
 
 use super::{frame_context::FrameContext, state::State};
 
-pub fn graph(_state: &mut State, area: Rect, ctx: &mut FrameContext) {
-    ctx.add(move |state, buf| {
-        let points = 1024;
-        let points0: Vec<(f64, f64)> = (0..points)
-            .map(|i| {
-                let y = state.tracker.snoop_out0.at(i) as f64;
-                ((points - i) as f64, y)
-            })
-            .collect();
+pub fn graph(state: &mut State, area: Rect, ctx: &mut FrameContext) {
+    let points = 1024;
+    let points0: Vec<(f64, f64)> = (0..points)
+        .map(|i| {
+            let y = state.tracker.snoop_out0.at(i) as f64;
+            ((points - i) as f64, y)
+        })
+        .collect();
 
+    ctx.add(move |buf| {
         let datasets = vec![Dataset::default()
             .marker(symbols::Marker::Braille)
             .graph_type(GraphType::Line)

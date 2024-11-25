@@ -15,7 +15,7 @@ pub fn editable_note(tone: &mut Tone, area: Rect, ctx: &mut FrameContext) {
 
     let tone = *tone;
 
-    ctx.add(move |_state, buf| {
+    ctx.add(move |buf| {
         let line = Line::raw(tone.get_string());
         line.style(Style::default().fg(Color::White))
             .render(area, buf);
