@@ -1,6 +1,5 @@
 use anyhow::Result;
 use core::f32;
-use std::{collections::HashMap, hash::Hash};
 
 use ratatui::layout::Rect;
 

@@ -2,7 +2,7 @@ use crate::{
     event::{Event, EventHandler},
     imui::{
         frame_context::FrameContext,
-        keyboard::{Key, Keyboard, RawInputMessage},
+        keyboard::{Key, RawInputMessage},
         message::Message,
         render_app::render_app,
         state::State,

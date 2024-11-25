@@ -2,10 +2,8 @@ use ratatui::prelude::*;
 
 use crate::imui::{
     editable_value::editable_value,
-    focus_calculator::{view_process_focus_message, Direction, FocusCalculator},
-    keyboard::InputMessage,
+    focus_calculator::{view_process_focus_message, FocusCalculator},
     label::label,
-    message::Message,
     vertical_meter::vertical_meter,
 };
 
