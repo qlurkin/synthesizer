@@ -8,6 +8,7 @@ use super::frame_context::FrameContext;
 pub fn block<T: Into<Line<'static>>, S: Into<Line<'static>>>(
     title: T,
     bottom: Option<S>,
+    strong: bool,
     area: Rect,
     ctx: &mut FrameContext,
 ) -> Rect {
@@ -21,7 +22,11 @@ pub fn block<T: Into<Line<'static>>, S: Into<Line<'static>>>(
         bl = bl.title_bottom(bottom.centered())
     }
 
-    let bl = bl.border_set(symbols::border::PLAIN);
+    let bl = if strong {
+        bl.border_set(symbols::border::THICK)
+    } else {
+        bl.border_set(symbols::border::PLAIN)
+    };
 
     let inner = bl.inner(area);
 

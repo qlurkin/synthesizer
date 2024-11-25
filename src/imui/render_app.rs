@@ -1,16 +1,27 @@
 use ratatui::prelude::*;
 
 use super::{
-    block::block, effects_view::effects_view, frame_context::FrameContext, graph::graph,
-    keyboard::process_raw_input, message::Message, mixer_view::mixer_view, state::State,
+    block::block,
+    effects_view::effects_view,
+    focus_calculator::{Direction as Dir, FocusCalculator},
+    frame_context::FrameContext,
+    graph::graph,
+    keyboard::{process_raw_input, InputMessage},
+    message::Message,
+    mixer_view::mixer_view,
+    state::State,
 };
 
 pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     process_raw_input(&mut state.keyboard, ctx);
 
+    let mut focus_calculator = FocusCalculator::new(state.view_focused);
+
+    let mut direction = Dir::None;
+
     ctx.process_messages(|msg, _msgs| {
         match msg {
-            Message::Input(super::keyboard::InputMessage::Play) => {
+            Message::Input(InputMessage::Play) => {
                 state.tracker.play_note();
                 return true;
             }
@@ -28,6 +39,22 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
                 state.tracker.snoop_out0.update();
                 state.tracker.snoop_out1.update();
                 return false;
+            }
+            Message::Input(InputMessage::ShiftRight) => {
+                direction = Dir::Right;
+                return true;
+            }
+            Message::Input(InputMessage::ShiftLeft) => {
+                direction = Dir::Left;
+                return true;
+            }
+            Message::Input(InputMessage::ShiftUp) => {
+                direction = Dir::Up;
+                return true;
+            }
+            Message::Input(InputMessage::ShiftDown) => {
+                direction = Dir::Down;
+                return true;
             }
             _ => (),
         }
@@ -47,7 +74,7 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
         " Quit ".into(),
         "<Q> ".blue().bold(),
     ]);
-    let inner = block(title, Some(instructions), area, ctx);
+    let inner = block(title, Some(instructions), false, area, ctx);
 
     let layout = Layout::default()
         .direction(Direction::Vertical)
@@ -65,6 +92,25 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
         ])
         .split(layout[1]);
 
-    mixer_view(state, layout[0], ctx);
-    effects_view(state, layout[1], ctx);
+    let (focused, rect) = focus_calculator.add(layout[0]);
+    if focused {
+        mixer_view(state, focused, rect, ctx);
+    } else {
+        let mut empty_context = FrameContext::new();
+        mixer_view(state, focused, rect, &mut empty_context);
+        ctx.append_draw_calls(&mut empty_context);
+    };
+
+    let (focused, rect) = focus_calculator.add(layout[1]);
+    if focused {
+        effects_view(state, focused, rect, ctx);
+    } else {
+        let mut empty_context = FrameContext::new();
+        effects_view(state, focused, rect, &mut empty_context);
+        ctx.append_draw_calls(&mut empty_context);
+    };
+
+    if let Ok(focus_id) = focus_calculator.to(direction) {
+        state.view_focused = focus_id;
+    }
 }

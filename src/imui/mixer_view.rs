@@ -16,8 +16,14 @@ fn snoop_maxer(snoop: &fundsp::hacker::Snoop, samples_nb: usize) -> f32 {
         .unwrap_or(0.0)
 }
 
-pub fn mixer_view(state: &mut State, area: Rect, ctx: &mut FrameContext) {
-    let inner = block(" Mixer ".red().bold(), None as Option<&str>, area, ctx);
+pub fn mixer_view(state: &mut State, focused: bool, area: Rect, ctx: &mut FrameContext) {
+    let inner = block(
+        " Mixer ".red().bold(),
+        None as Option<&str>,
+        focused,
+        area,
+        ctx,
+    );
 
     let mut focus_calculator = FocusCalculator::new(state.mixer_focused);
 

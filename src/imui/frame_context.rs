@@ -52,4 +52,16 @@ impl FrameContext {
             (call)(buf);
         }
     }
+
+    pub fn new() -> Self {
+        Self {
+            messages: Vec::new(),
+            next_messages: Vec::new(),
+            draw_calls: Vec::new(),
+        }
+    }
+
+    pub fn append_draw_calls(&mut self, other: &mut Self) {
+        self.draw_calls.append(&mut other.draw_calls);
+    }
 }
