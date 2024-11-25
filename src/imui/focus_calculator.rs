@@ -74,7 +74,7 @@ impl FocusCalculator {
         (self.focused == id, rect)
     }
 
-    pub fn update(&self, direction: Direction) -> Result<usize, ()> {
+    pub fn to(&self, direction: Direction) -> Result<usize, ()> {
         let rect = self.rects[self.focused];
 
         let focused_center = Point {
@@ -135,7 +135,7 @@ pub fn view_process_focus_message(
         _ => false,
     });
 
-    if let Ok(focus_id) = focus_calculator.update(direction) {
+    if let Ok(focus_id) = focus_calculator.to(direction) {
         *focused = focus_id;
     } else {
         match direction {
