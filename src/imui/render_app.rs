@@ -12,6 +12,23 @@ use super::{
     state::State,
 };
 
+fn render_view(
+    view: fn(&mut State, bool, Rect, &mut FrameContext),
+    state: &mut State,
+    focus_calculator: &mut FocusCalculator,
+    area: Rect,
+    ctx: &mut FrameContext,
+) {
+    let (focused, rect) = focus_calculator.add(area);
+    if focused {
+        view(state, focused, rect, ctx);
+    } else {
+        let mut empty_context = FrameContext::new();
+        view(state, focused, rect, &mut empty_context);
+        ctx.append_draw_calls(&mut empty_context);
+    };
+}
+
 pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     process_raw_input(&mut state.keyboard, ctx);
 
@@ -92,23 +109,9 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
         ])
         .split(layout[1]);
 
-    let (focused, rect) = focus_calculator.add(layout[0]);
-    if focused {
-        mixer_view(state, focused, rect, ctx);
-    } else {
-        let mut empty_context = FrameContext::new();
-        mixer_view(state, focused, rect, &mut empty_context);
-        ctx.append_draw_calls(&mut empty_context);
-    };
+    render_view(mixer_view, state, &mut focus_calculator, layout[0], ctx);
 
-    let (focused, rect) = focus_calculator.add(layout[1]);
-    if focused {
-        effects_view(state, focused, rect, ctx);
-    } else {
-        let mut empty_context = FrameContext::new();
-        effects_view(state, focused, rect, &mut empty_context);
-        ctx.append_draw_calls(&mut empty_context);
-    };
+    render_view(effects_view, state, &mut focus_calculator, layout[1], ctx);
 
     if let Ok(focus_id) = focus_calculator.to(direction) {
         state.view_focused = focus_id;
