@@ -6,6 +6,7 @@ pub struct State {
     pub keyboard: Keyboard,
     pub tracker: Tracker,
     pub mixer_focused: usize,
+    pub effects_focused: usize,
 }
 
 impl State {
@@ -14,6 +15,7 @@ impl State {
             tracker,
             keyboard: Keyboard::new(),
             mixer_focused: 0,
+            effects_focused: 0,
         }
     }
 }

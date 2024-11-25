@@ -1,8 +1,8 @@
 use ratatui::prelude::*;
 
 use super::{
-    block::block, frame_context::FrameContext, graph::graph, keyboard::process_raw_input,
-    message::Message, mixer_view::mixer_view, state::State,
+    block::block, effects_view::effects_view, frame_context::FrameContext, graph::graph,
+    keyboard::process_raw_input, message::Message, mixer_view::mixer_view, state::State,
 };
 
 pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
@@ -66,4 +66,5 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
         .split(layout[1]);
 
     mixer_view(state, layout[0], ctx);
+    effects_view(state, layout[1], ctx);
 }
