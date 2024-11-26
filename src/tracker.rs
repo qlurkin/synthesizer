@@ -1,5 +1,7 @@
 use fundsp::hacker::*;
 
+use crate::imui::console::console_log;
+
 pub const NB_TRACKS: usize = 8;
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
@@ -187,6 +189,14 @@ pub struct Phrase {
     pub steps: Vec<Option<Step>>,
 }
 
+impl Phrase {
+    fn new() -> Self {
+        Self {
+            steps: std::iter::repeat_with(|| None).take(16).collect(),
+        }
+    }
+}
+
 pub struct Chain {
     pub phrases: Vec<Option<usize>>,
 }
@@ -199,6 +209,9 @@ pub struct Track {
     pub snoop1: Snoop,
     pub sequencer: Sequencer,
     pub net: Net,
+    pub chain_cursor: usize,
+    pub phrase_cursor: usize,
+    pub step_cursor: usize,
 }
 
 impl Track {
@@ -226,6 +239,9 @@ impl Track {
             snoop1,
             sequencer,
             net,
+            chain_cursor: 0,
+            phrase_cursor: 0,
+            step_cursor: 0,
         }
     }
 }
@@ -490,6 +506,13 @@ impl Tracker {
     }
 
     pub fn play_note(&mut self) {
+        let step_id = self.tracks[0].step_cursor;
+        if self.get_phrase(0).steps[step_id].is_none() {
+            return;
+        }
+
+        let tone = self.get_phrase(0).steps[step_id].as_ref().unwrap().tone;
+
         if let Some(ref instrument) = self.instruments[0] {
             self.tracks[0].sequencer.push_relative(
                 0.0,
@@ -497,8 +520,15 @@ impl Tracker {
                 Fade::Smooth,
                 0.0,
                 0.25,
-                instrument.unit(self.tone.get_frequency(), 1.0),
+                instrument.unit(tone.get_frequency(), 1.0),
             );
         }
+    }
+
+    pub fn get_phrase(&mut self, index: usize) -> &mut Phrase {
+        if self.phrases[index].is_none() {
+            self.phrases[index] = Some(Phrase::new());
+        }
+        self.phrases[index].as_mut().unwrap()
     }
 }

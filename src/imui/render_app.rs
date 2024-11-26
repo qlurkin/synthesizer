@@ -2,6 +2,7 @@ use ratatui::prelude::*;
 
 use super::{
     block::block,
+    console::{console, console_log},
     effects_view::effects_view,
     focus_calculator::{Direction as Dir, FocusCalculator},
     frame_context::FrameContext,
@@ -9,6 +10,7 @@ use super::{
     keyboard::{process_raw_input, InputMessage},
     message::Message,
     mixer_view::mixer_view,
+    phrase_view::phrase_view,
     state::State,
 };
 
@@ -39,6 +41,7 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     ctx.process_messages(|msg, _msgs| {
         match msg {
             Message::Input(InputMessage::Play) => {
+                console_log(state, "Play");
                 state.tracker.play_note();
                 return true;
             }
@@ -103,15 +106,20 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     let layout = Layout::default()
         .direction(Direction::Horizontal)
         .constraints(vec![
-            Constraint::Percentage(20),
-            Constraint::Percentage(20),
-            Constraint::Percentage(20),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
+            Constraint::Percentage(25),
         ])
         .split(layout[1]);
 
     render_view(mixer_view, state, &mut focus_calculator, layout[0], ctx);
 
     render_view(effects_view, state, &mut focus_calculator, layout[1], ctx);
+
+    render_view(phrase_view, state, &mut focus_calculator, layout[2], ctx);
+
+    console(state, layout[3], ctx);
 
     if let Ok(focus_id) = focus_calculator.to(direction) {
         state.view_focused = focus_id;

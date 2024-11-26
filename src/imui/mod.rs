@@ -1,4 +1,5 @@
 mod block;
+pub mod console;
 mod editable_note;
 mod editable_value;
 mod effects_view;
@@ -9,6 +10,7 @@ pub mod keyboard;
 mod label;
 pub mod message;
 mod mixer_view;
+mod phrase_view;
 pub mod render_app;
 pub mod state;
 mod title;
