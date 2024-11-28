@@ -1,4 +1,4 @@
-use crate::{imui::keyboard::InputMessage, math::to_hex_str_2};
+use crate::{ui::keyboard::InputMessage, math::to_hex_str_2};
 
 use super::{frame_context::FrameContext, message::Message};
 use ratatui::prelude::*;

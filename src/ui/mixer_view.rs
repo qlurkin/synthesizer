@@ -1,6 +1,6 @@
 use ratatui::prelude::*;
 
-use crate::imui::{
+use crate::ui::{
     editable_value::editable_value,
     focus_calculator::{view_process_focus_message, FocusCalculator},
     label::label,
