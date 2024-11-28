@@ -1,13 +1,16 @@
 use ratatui::prelude::*;
+use std::sync::Mutex;
 
-use super::{block::block, frame_context::FrameContext, state::State};
+static LOGS: Mutex<Vec<Line<'static>>> = Mutex::new(Vec::new());
 
-pub fn console_log<T: Into<Line<'static>>>(state: &mut State, txt: T) {
+use super::{block::block, frame_context::FrameContext};
+
+pub fn console_log<T: Into<Line<'static>>>(txt: T) {
     let line: Line = txt.into();
-    state.logs.push(line);
+    LOGS.lock().unwrap().push(line);
 }
 
-pub fn console(state: &mut State, area: Rect, ctx: &mut FrameContext) {
+pub fn console(area: Rect, ctx: &mut FrameContext) {
     let inner = block(
         " Console ".red().bold(),
         None as Option<&str>,
@@ -16,7 +19,7 @@ pub fn console(state: &mut State, area: Rect, ctx: &mut FrameContext) {
         ctx,
     );
 
-    let mut txts = state.logs.clone();
+    let mut txts = LOGS.lock().unwrap().clone();
 
     ctx.add(move |buf| {
         txts.reverse();
