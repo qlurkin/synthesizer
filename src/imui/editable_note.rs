@@ -45,6 +45,10 @@ pub fn editable_note(tone: &mut Option<Tone>, focused: bool, area: Rect, ctx: &m
                 semitone_down(tone, 12);
                 true
             }
+            Message::Input(InputMessage::Clear) => {
+                *tone = None;
+                true
+            }
             _ => false,
         });
     }

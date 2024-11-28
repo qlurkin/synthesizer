@@ -34,6 +34,8 @@ fn set_tone(state: &mut State, phrase_id: usize, step_id: usize, value: Option<T
             .as_mut()
             .unwrap()
             .tone = tone;
+    } else {
+        state.tracker.get_phrase(phrase_id).steps[step_id] = None;
     }
 }
 

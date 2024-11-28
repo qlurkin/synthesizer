@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 
 use super::{frame_context::FrameContext, message::Message};
 
@@ -30,6 +30,7 @@ pub enum InputMessage {
     EditDown,
     EditLeft,
     EditRight,
+    Clear,
 }
 
 #[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
@@ -39,13 +40,13 @@ pub enum RawInputMessage {
 }
 
 pub struct Keyboard {
-    keys: HashMap<Key, bool>,
+    keys: HashSet<Key>,
 }
 
 impl Keyboard {
     pub fn new() -> Self {
         Self {
-            keys: HashMap::new(),
+            keys: HashSet::new(),
         }
     }
 }
@@ -55,48 +56,99 @@ pub fn process_raw_input(keyboard: &mut Keyboard, ctx: &mut FrameContext) {
         if let Message::RawInput(msg) = msg {
             match msg {
                 RawInputMessage::Press(key) => {
-                    let key_state = keyboard.keys.entry(*key).or_insert(false);
-                    if !*key_state {
-                        *key_state = true;
-                    }
+                    let handled = false;
+                    let handled = if keyboard.keys.contains(&Key::Option) {
+                        match key {
+                            Key::Edit => {
+                                msgs.push(Message::Input(InputMessage::Clear));
+                                true
+                            }
+                            _ => handled,
+                        }
+                    } else {
+                        handled
+                    };
+
+                    let handled = if !handled && keyboard.keys.contains(&Key::Edit) {
+                        match key {
+                            Key::Up => {
+                                msgs.push(Message::Input(InputMessage::EditUp));
+                                true
+                            }
+                            Key::Down => {
+                                msgs.push(Message::Input(InputMessage::EditDown));
+                                true
+                            }
+                            Key::Left => {
+                                msgs.push(Message::Input(InputMessage::EditLeft));
+                                true
+                            }
+                            Key::Right => {
+                                msgs.push(Message::Input(InputMessage::EditRight));
+                                true
+                            }
+                            _ => handled,
+                        }
+                    } else {
+                        handled
+                    };
+
+                    let handled = if !handled && keyboard.keys.contains(&Key::Shift) {
+                        match key {
+                            Key::Up => {
+                                msgs.push(Message::Input(InputMessage::ShiftUp));
+                                true
+                            }
+                            Key::Down => {
+                                msgs.push(Message::Input(InputMessage::ShiftDown));
+                                true
+                            }
+                            Key::Left => {
+                                msgs.push(Message::Input(InputMessage::ShiftLeft));
+                                true
+                            }
+                            Key::Right => {
+                                msgs.push(Message::Input(InputMessage::ShiftRight));
+                                true
+                            }
+                            _ => handled,
+                        }
+                    } else {
+                        handled
+                    };
+
+                    let _handled = if !handled {
+                        match key {
+                            Key::Up => {
+                                msgs.push(Message::Input(InputMessage::Up));
+                                true
+                            }
+                            Key::Down => {
+                                msgs.push(Message::Input(InputMessage::Down));
+                                true
+                            }
+                            Key::Left => {
+                                msgs.push(Message::Input(InputMessage::Left));
+                                true
+                            }
+                            Key::Right => {
+                                msgs.push(Message::Input(InputMessage::Right));
+                                true
+                            }
+                            Key::Play => {
+                                msgs.push(Message::Input(InputMessage::Play));
+                                true
+                            }
+                            _ => handled,
+                        }
+                    } else {
+                        handled
+                    };
+
+                    keyboard.keys.insert(*key);
                 }
                 RawInputMessage::Release(key) => {
-                    keyboard.keys.insert(*key, false);
-
-                    if let Some(down) = keyboard.keys.get(&Key::Edit) {
-                        if *down {
-                            match key {
-                                Key::Up => msgs.push(Message::Input(InputMessage::EditUp)),
-                                Key::Down => msgs.push(Message::Input(InputMessage::EditDown)),
-                                Key::Left => msgs.push(Message::Input(InputMessage::EditLeft)),
-                                Key::Right => msgs.push(Message::Input(InputMessage::EditRight)),
-                                _ => {}
-                            };
-                            return true;
-                        }
-                    }
-
-                    if let Some(down) = keyboard.keys.get(&Key::Shift) {
-                        if *down {
-                            match key {
-                                Key::Up => msgs.push(Message::Input(InputMessage::ShiftUp)),
-                                Key::Down => msgs.push(Message::Input(InputMessage::ShiftDown)),
-                                Key::Left => msgs.push(Message::Input(InputMessage::ShiftLeft)),
-                                Key::Right => msgs.push(Message::Input(InputMessage::ShiftRight)),
-                                _ => {}
-                            };
-                            return true;
-                        }
-                    }
-
-                    match key {
-                        Key::Up => msgs.push(Message::Input(InputMessage::Up)),
-                        Key::Down => msgs.push(Message::Input(InputMessage::Down)),
-                        Key::Left => msgs.push(Message::Input(InputMessage::Left)),
-                        Key::Right => msgs.push(Message::Input(InputMessage::Right)),
-                        Key::Play => msgs.push(Message::Input(InputMessage::Play)),
-                        _ => {}
-                    }
+                    keyboard.keys.remove(key);
                 }
             };
             true
