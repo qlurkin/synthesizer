@@ -4,6 +4,7 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
+#[allow(dead_code)]
 /// Terminal events.
 #[derive(Clone, Copy, Debug)]
 pub enum Event {

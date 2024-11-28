@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use fundsp::hacker::*;
 
 pub const NB_TRACKS: usize = 8;
@@ -188,7 +190,7 @@ pub struct Phrase {
 }
 
 impl Phrase {
-    pub fn new() -> Self {
+    fn new() -> Self {
         Self {
             steps: std::iter::repeat_with(|| None).take(16).collect(),
         }
@@ -207,6 +209,9 @@ pub struct Track {
     pub snoop1: Snoop,
     pub sequencer: Sequencer,
     pub net: Net,
+    pub chain_cursor: usize,
+    pub phrase_cursor: usize,
+    pub step_cursor: usize,
 }
 
 impl Track {
@@ -234,7 +239,14 @@ impl Track {
             snoop1,
             sequencer,
             net,
+            chain_cursor: 0,
+            phrase_cursor: 0,
+            step_cursor: 0,
         }
+    }
+
+    pub fn step(&mut self) {
+        self.step_cursor = (self.step_cursor + 1) % 16;
     }
 }
 
@@ -270,6 +282,15 @@ pub struct Tracker {
     reverb: Slot,
     chorus: Slot,
     delay: Slot,
+    last_update: Option<Instant>,
+    pub play_time: Duration,
+    pub bpm: f32,
+    pub update_duration: Option<Duration>,
+    pub tick_count: u32,
+    pub step_count: u32,
+    pub time_since_last_tick: Duration,
+    pub remaining_ticks_for_next_step: u32,
+    pub playing: bool,
 }
 
 impl Tracker {
@@ -285,11 +306,11 @@ impl Tracker {
             .collect();
         let reverb_mix_level = shared(1.0);
         let chorus_mix_level = shared(1.0);
-        let delay_mix_level = shared(1.0);
+        let delay_mix_level = shared(0.0);
         let chorus_to_reverb_level = shared(0.0);
         let delay_to_reverb_level = shared(0.0);
-        let reverb_room_size = 10.0;
-        let reverb_time = 2.0;
+        let reverb_room_size = 5.0;
+        let reverb_time = 1.0;
         let reverb_diffusion = 0.5;
         let reverb_modulation_speed = 1.0;
         let reverb_filter_frequency = 8000.0;
@@ -424,6 +445,15 @@ impl Tracker {
             snoop_chorus1,
             snoop_out0,
             snoop_out1,
+            last_update: None,
+            play_time: Duration::from_secs_f32(0.0),
+            time_since_last_tick: Duration::from_secs_f32(0.0),
+            bpm: 128.0,
+            update_duration: None,
+            tick_count: 0,
+            step_count: 0,
+            remaining_ticks_for_next_step: 6,
+            playing: false,
         };
 
         tracker.rebuild_reverb();
@@ -497,16 +527,93 @@ impl Tracker {
         self.tone = self.tone.down(1);
     }
 
+    fn step(&mut self) {
+        self.step_count += 1;
+        if self.step_count == self.song_step_count() as u32 {
+            self.step_count = 0;
+        }
+        self.tracks.iter_mut().for_each(|track| {
+            track.step();
+        });
+        self.play_note();
+    }
+
+    fn tick(&mut self) {
+        self.remaining_ticks_for_next_step -= 1;
+        if self.remaining_ticks_for_next_step == 0 {
+            self.remaining_ticks_for_next_step = 6;
+            self.step();
+        }
+    }
+
+    pub fn update(&mut self) {
+        // The length of a beat is specified by the bpm
+        // beat are divided in 24 ticks
+        // normally, a phrase's step is 6 ticks
+        // so there is 4 steps in a beat
+
+        let now = Instant::now();
+
+        if !self.playing {
+            self.last_update = Some(now);
+            return;
+        }
+
+        let tps = self.bpm * 24.0 / 60.0;
+        let tick_duration = 1.0 / tps;
+
+        if let Some(last_update) = self.last_update {
+            let update_duration = now.duration_since(last_update);
+            self.update_duration = Some(update_duration);
+            self.time_since_last_tick += update_duration;
+            let ticks = (self.time_since_last_tick.as_secs_f32() * tps) as u32;
+            self.tick_count += ticks;
+            (0..ticks).for_each(|_| {
+                self.tick();
+            });
+            self.time_since_last_tick -= ticks * Duration::from_secs_f32(tick_duration);
+        }
+        self.last_update = Some(now);
+
+        let time_since_last_step =
+            (self.tick_count % 6) as f32 * tick_duration + self.time_since_last_tick.as_secs_f32();
+        let next_step_time = 6.0 * tick_duration - time_since_last_step;
+
+        (0..self.tracks.len()).for_each(|i| {
+            self.update_track(i, next_step_time);
+        });
+    }
+
+    fn update_track(&mut self, track_id: usize, next_step_time: f32) {}
+
     pub fn play_note(&mut self) {
+        let step_id = self.tracks[0].step_cursor;
+        if self.get_phrase(0).steps[step_id].is_none() {
+            return;
+        }
+
+        let tone = self.get_phrase(0).steps[step_id].as_ref().unwrap().tone;
+
         if let Some(ref instrument) = self.instruments[0] {
             self.tracks[0].sequencer.push_relative(
                 0.0,
-                1.0,
+                0.2,
                 Fade::Smooth,
                 0.0,
-                0.25,
-                instrument.unit(self.tone.get_frequency(), 1.0),
+                0.05,
+                instrument.unit(tone.get_frequency(), 1.0),
             );
         }
+    }
+
+    pub fn get_phrase(&mut self, index: usize) -> &mut Phrase {
+        if self.phrases[index].is_none() {
+            self.phrases[index] = Some(Phrase::new());
+        }
+        self.phrases[index].as_mut().unwrap()
+    }
+
+    fn song_step_count(&self) -> usize {
+        16
     }
 }

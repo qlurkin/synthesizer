@@ -2,9 +2,9 @@ use cpal::traits::{DeviceTrait, HostTrait};
 
 mod app;
 mod event;
+mod imui;
 mod math;
 mod tracker;
-mod ui;
 
 use app::App;
 
@@ -32,3 +32,12 @@ fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+// todo:
+// - Add OFF to phrase view
+// - edit a basic modular instrument
+// - can have multiple instrument and use them in phrase view
+// - add chains
+// - Use all tracks
+// - rework tracker internals: reverb, chorus and delay should not need to be rebuilt for each
+//   change. Internals should be modular

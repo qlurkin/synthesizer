@@ -4,6 +4,5 @@ use super::keyboard::{InputMessage, RawInputMessage};
 pub enum Message {
     RawInput(RawInputMessage),
     Input(InputMessage),
-    Quit,
     Refresh,
 }
