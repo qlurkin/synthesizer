@@ -32,3 +32,14 @@ fn main() -> anyhow::Result<()> {
 
     Ok(())
 }
+
+// todo:
+// - emit event on keydown instead of keyup
+// - Add delete note to phrase view
+// - Add OFF to phrase view
+// - edit a basic modular instrument
+// - can have multiple instrument and use them in phrase view
+// - add chains
+// - Use all tracks
+// - rework tracker internals: reverb, chorus and delay should not need to be rebuilt for each
+//   change. Internals should be modular
