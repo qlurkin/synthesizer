@@ -34,8 +34,6 @@ fn main() -> anyhow::Result<()> {
 }
 
 // todo:
-// - emit event on keydown instead of keyup
-// - Add delete note to phrase view
 // - Add OFF to phrase view
 // - edit a basic modular instrument
 // - can have multiple instrument and use them in phrase view
