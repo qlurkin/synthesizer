@@ -41,11 +41,16 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
     ctx.process_messages(|msg, _msgs| {
         match msg {
             Message::Input(InputMessage::Play) => {
-                console_log(state, "Play");
-                state.tracker.play_note();
+                console_log(format!(
+                    "Time: {:?}, Ticks: {}",
+                    state.tracker.update_duration, state.tracker.tick_count
+                ));
+                // state.tracker.play_note();
+                state.tracker.playing = !state.tracker.playing;
                 return true;
             }
             Message::Refresh => {
+                state.tracker.update();
                 for i in 0..8 {
                     state.tracker.tracks[i].snoop0.update();
                     state.tracker.tracks[i].snoop1.update();
@@ -119,7 +124,7 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
 
     render_view(phrase_view, state, &mut focus_calculator, layout[2], ctx);
 
-    console(state, layout[3], ctx);
+    console(layout[3], ctx);
 
     if let Ok(focus_id) = focus_calculator.to(direction) {
         state.view_focused = focus_id;
