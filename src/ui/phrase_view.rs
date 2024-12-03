@@ -1,6 +1,6 @@
 use crate::{
     math::to_hex_str_1,
-    tracker::{Step, Tone},
+    tracker::{step::Step, tone::Tone},
 };
 
 use super::{

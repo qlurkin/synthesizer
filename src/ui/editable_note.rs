@@ -1,6 +1,6 @@
 use ratatui::prelude::*;
 
-use crate::tracker::Tone;
+use crate::tracker::tone::Tone;
 
 use super::{frame_context::FrameContext, keyboard::InputMessage, message::Message};
 

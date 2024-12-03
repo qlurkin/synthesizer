@@ -53,8 +53,8 @@ pub fn mixer_view(state: &mut State, focused: bool, area: Rect, ctx: &mut FrameC
         let mut value = state.tracker.tracks[i].mix_level.value();
         render_track(
             &mut value,
-            snoop_maxer(&state.tracker.tracks[i].snoop0, 2048),
-            snoop_maxer(&state.tracker.tracks[i].snoop1, 2048),
+            snoop_maxer(&state.tracker.tracks[i].snoop_l, 2048),
+            snoop_maxer(&state.tracker.tracks[i].snoop_r, 2048),
             &format!("T{}", i),
             Rect::new(inner.x + 1 + i as u16 * 3, inner.y, 2, 6),
             &mut focus_calculator,

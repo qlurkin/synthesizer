@@ -52,8 +52,8 @@ pub fn render_app(state: &mut State, area: Rect, ctx: &mut FrameContext) {
             Message::Refresh => {
                 state.tracker.update();
                 for i in 0..8 {
-                    state.tracker.tracks[i].snoop0.update();
-                    state.tracker.tracks[i].snoop1.update();
+                    state.tracker.tracks[i].snoop_l.update();
+                    state.tracker.tracks[i].snoop_r.update();
                 }
                 state.tracker.snoop_chorus0.update();
                 state.tracker.snoop_chorus1.update();

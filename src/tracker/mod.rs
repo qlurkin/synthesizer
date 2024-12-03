@@ -1,254 +1,26 @@
+pub mod chain;
+pub mod envelope;
+pub mod instrument;
+pub mod instrument_type;
+pub mod phrase;
+pub mod step;
+pub mod tone;
+pub mod track;
+pub mod waveform;
+
 use std::time::{Duration, Instant};
 
+use chain::Chain;
+use envelope::Envelope;
 use fundsp::hacker::*;
+use instrument::Instrument;
+use instrument_type::InstrumentType;
+use phrase::Phrase;
+use tone::Tone;
+use track::Track;
+use waveform::Waveform;
 
 pub const NB_TRACKS: usize = 8;
-
-#[derive(Eq, PartialEq, Hash, Copy, Clone, Debug)]
-pub struct Tone {
-    pub octave: i32,
-    pub semitone: i32,
-}
-
-#[allow(unused)]
-impl Tone {
-    pub fn get_frequency(&self) -> f32 {
-        let base_frequency = 440.0_f32; // Fréquence du La 4ème octave
-        let semitone_ratio = 2.0_f32.powf(1.0 / 12.0); // Ratio entre deux demi-tons successifs
-
-        let semitone_difference = (self.octave - 4) * 12 + self.semitone; // Nombre total de demi-tons par rapport au La 4ème octave
-        base_frequency * semitone_ratio.powi(semitone_difference)
-    }
-
-    pub fn up(&self, n: u32) -> Self {
-        let mut octave = self.octave;
-        let mut semitone = self.semitone;
-        for _ in 0..n {
-            if semitone == 2 {
-                octave += 1;
-            }
-            semitone = (semitone + 9 + 1).rem_euclid(12) - 9;
-        }
-        Self { semitone, octave }
-    }
-
-    pub fn down(&self, n: u32) -> Self {
-        let mut octave = self.octave;
-        let mut semitone = self.semitone;
-        for _ in 0..n {
-            if semitone == -9 {
-                octave -= 1;
-            }
-            semitone = (semitone + 9 - 1).rem_euclid(12) - 9;
-        }
-        Self { semitone, octave }
-    }
-
-    pub fn get_string(&self) -> String {
-        let semitone_str = match self.semitone {
-            0 => "A-",
-            1 => "A#",
-            2 => "B-",
-            -9 => "C-",
-            -8 => "C#",
-            -7 => "D-",
-            -6 => "D#",
-            -5 => "E-",
-            -4 => "F-",
-            -3 => "F#",
-            -2 => "G-",
-            _ => "G#",
-        };
-        format!("{}{}", semitone_str, self.octave)
-    }
-}
-
-pub enum Waveform {
-    Sine,
-    Saw,
-    Triangle,
-    Square,
-    Pulse { duty_cycle: f32 },
-}
-
-impl Waveform {
-    pub fn unit(&self) -> Box<dyn AudioUnit> {
-        match self {
-            Waveform::Sine => Box::new(sine()),
-            Waveform::Saw => Box::new(saw()),
-            Waveform::Triangle => Box::new(triangle()),
-            Waveform::Square => Box::new(square()),
-            Waveform::Pulse { duty_cycle } => {
-                Box::new((multipass::<U1>() | dc(*duty_cycle)) >> pulse())
-            }
-        }
-    }
-}
-
-#[derive(Clone, Copy)]
-pub enum Envelope {
-    Ads {
-        attack: f64,
-        decay: f64,
-        sustain: f64,
-    },
-    None,
-}
-
-impl Envelope {
-    pub fn level(&self, time: f64) -> f64 {
-        match self {
-            Envelope::Ads {
-                attack,
-                decay,
-                sustain,
-            } => {
-                if time < *attack {
-                    lerp(0.0_f64, 1.0_f64, time / attack)
-                } else {
-                    let decay_time = time - attack;
-                    if decay_time < *decay {
-                        lerp(1.0_f64, *sustain, decay_time / decay)
-                    } else {
-                        *sustain
-                    }
-                }
-            }
-            Envelope::None => 1.0,
-        }
-    }
-}
-
-pub enum InstrumentType {
-    None,
-    Simple {
-        waveform: Waveform,
-        envelope: Envelope,
-    },
-}
-
-impl InstrumentType {
-    pub fn unit(&self, frequency: f32, _velocity: f32) -> Box<dyn AudioUnit> {
-        match self {
-            InstrumentType::None => Box::new(zero()),
-            InstrumentType::Simple { waveform, envelope } => {
-                let envelope = *envelope;
-                Box::new(
-                    dc(frequency)
-                        >> (fundsp::hacker::envelope(move |t| envelope.level(t))
-                            * Net::wrap(waveform.unit())),
-                )
-            }
-        }
-    }
-}
-
-pub struct Instrument {
-    ty: InstrumentType,
-    dry_level: f32,
-    reverb_level: f32,
-    chorus_level: f32,
-    delay_level: f32,
-    pan: f32,
-}
-
-impl Instrument {
-    pub fn new(ty: InstrumentType) -> Self {
-        Self {
-            ty,
-            dry_level: 1.0,
-            reverb_level: 1.0,
-            chorus_level: 0.0,
-            delay_level: 0.8,
-            pan: 0.0,
-        }
-    }
-
-    pub fn unit(&self, frequency: f32, velocity: f32) -> Box<dyn AudioUnit> {
-        let net = Net::wrap(self.ty.unit(frequency, velocity));
-        let net = net >> pan(self.pan);
-
-        let net = net
-            >> multisplit::<U2, U4>()
-            >> ((self.dry_level * multipass::<U2>())
-                | (self.chorus_level * multipass::<U2>())
-                | (self.delay_level * multipass::<U2>())
-                | (self.reverb_level * multipass::<U2>()));
-
-        Box::new(net)
-    }
-}
-
-pub struct Step {
-    pub tone: Tone,
-    pub instrument: usize,
-    pub velocity: u8,
-}
-
-pub struct Phrase {
-    pub steps: Vec<Option<Step>>,
-}
-
-impl Phrase {
-    fn new() -> Self {
-        Self {
-            steps: std::iter::repeat_with(|| None).take(16).collect(),
-        }
-    }
-}
-
-pub struct Chain {
-    pub phrases: Vec<Option<usize>>,
-}
-
-pub struct Track {
-    pub chains: Vec<Option<usize>>,
-    pub event_id: Option<EventId>,
-    pub mix_level: Shared,
-    pub snoop0: Snoop,
-    pub snoop1: Snoop,
-    pub sequencer: Sequencer,
-    pub net: Net,
-    pub chain_cursor: usize,
-    pub phrase_cursor: usize,
-    pub step_cursor: usize,
-}
-
-impl Track {
-    fn new() -> Self {
-        let (snoop0, snoop0_backend) = snoop(2048);
-        let (snoop1, snoop1_backend) = snoop(2048);
-
-        let mut sequencer = Sequencer::new(false, 8);
-
-        let backend = sequencer.backend();
-
-        let mix_level = shared(1.0);
-
-        let mut net = Net::wrap(Box::new(backend));
-        net = net
-            >> (((multipass::<U2>() * (var(&mix_level) | var(&mix_level)))
-                >> (snoop0_backend | snoop1_backend))
-                | multipass::<U6>());
-
-        Self {
-            chains: std::iter::repeat_with(|| None).take(256).collect(),
-            event_id: None,
-            mix_level,
-            snoop0,
-            snoop1,
-            sequencer,
-            net,
-            chain_cursor: 0,
-            phrase_cursor: 0,
-            step_cursor: 0,
-        }
-    }
-
-    pub fn step(&mut self) {
-        self.step_cursor = (self.step_cursor + 1) % 16;
-    }
-}
 
 pub struct Tracker {
     pub tone: Tone,
@@ -319,6 +91,10 @@ impl Tracker {
         let chorus_mod_frequency = 0.5;
         let delay_time = 1.0;
         let delay_decay = 3.0;
+
+        // test
+        // let room_size = shared(0.0);
+        // let test_reverb = reverb2_stereo(var(&room_size)., 1.0, 1.0, 1.0, lowpole_hz(8000.0));
 
         let (reverb, reverb_backend) = Slot::new(Box::new(multipass::<U2>()));
         let (chorus, chorus_backend) = Slot::new(Box::new(multipass::<U2>()));
