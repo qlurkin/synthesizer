@@ -1,42 +1,35 @@
 import miniaudio
 import numpy as np
 
-# Paramètres du son
+# Paramètres audio
 SAMPLE_RATE = 44100  # Hz
 FREQUENCY = 440.0  # Hz (La4)
 AMPLITUDE = 0.5  # Volume (entre 0 et 1)
-BUFFER_SIZE = 512  # Nombre d'échantillons par callback
+BUFFER_SIZE = 512  # Nombre d'échantillons par bloc
 
-class SineWaveGenerator:
-    def __init__(self, sample_rate, frequency, amplitude):
-        self.sample_rate = sample_rate
-        self.frequency = frequency
-        self.amplitude = amplitude
-        self.phase = 0.0
-        self.phase_increment = (2.0 * np.pi * self.frequency) / self.sample_rate
+def sine_wave_generator():
+    """ Générateur d'onde sinusoïdale en temps réel pour miniaudio """
+    phase = 0.0
+    phase_increment = (2.0 * np.pi * FREQUENCY) / SAMPLE_RATE
 
-    def callback(self, frame_count: int, time_info, status):
-        """ Génère une onde sinusoïdale en temps réel. """
-        output_buffer = np.zeros(frame_count, dtype=np.float32)
+    while True:
+        # Génération du buffer de samples
+        samples = (AMPLITUDE * np.sin(phase + np.arange(BUFFER_SIZE) * phase_increment)).astype(np.float32)
+        phase = (phase + BUFFER_SIZE * phase_increment) % (2.0 * np.pi)
         
-        for i in range(frame_count):
-            output_buffer[i] = self.amplitude * np.sin(self.phase)
-            self.phase += self.phase_increment
-            if self.phase >= 2.0 * np.pi:
-                self.phase -= 2.0 * np.pi  # Évite la dérive de phase
+        # miniaudio attend un buffer sous forme de bytes
+        yield samples.tobytes()
 
-        return output_buffer.tobytes()
+# Création du périphérique audio
+device = miniaudio.PlaybackDevice(output_format=miniaudio.SampleFormat.FLOAT32, sample_rate=SAMPLE_RATE, nchannels=1)
 
-# Création du générateur de son
-sine_wave = SineWaveGenerator(SAMPLE_RATE, FREQUENCY, AMPLITUDE)
+sine = sine_wave_generator()
 
-# Initialisation de la sortie audio avec un callback
-with miniaudio.PlaybackDevice(output_format=miniaudio.SampleFormat.FLOAT32, sample_rate=SAMPLE_RATE, nchannels=1) as device:
-    device.start(sine_wave.callback)
+next(sine)
 
-    print("Lecture en temps réel... Appuyez sur Ctrl+C pour arrêter.")
-    try:
-        while True:
-            pass
-    except KeyboardInterrupt:
-        print("\nArrêt du son.")
+# Démarrer la lecture en utilisant le générateur
+device.start(sine)
+
+# Maintenir l’exécution
+input("Appuyez sur Entrée pour arrêter...\n")
+device.stop()

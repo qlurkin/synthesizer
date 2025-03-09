@@ -13,9 +13,9 @@ BUFFER_SIZE = 1024  # Taille du buffer audio
 
 # Fonction pour générer une onde sinusoïdale
 def generate_sine_wave(frequency, sample_rate, buffer_size):
-    t = np.arange(buffer_size) / sample_rate
+    t = np.arange(1 * buffer_size) / sample_rate
     wave = (AMPLITUDE * np.sin(2 * np.pi * frequency * t)).astype(np.int16)
-    return np.column_stack([wave])  # Convertir en tableau compatible pygame
+    return wave  # Convertir en tableau compatible pygame
 
 
 # Création d’un premier buffer audio
